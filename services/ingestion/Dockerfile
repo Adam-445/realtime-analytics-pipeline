@@ -1,20 +1,26 @@
+# Use a minimal Python base image
 FROM python:3.13-slim
 
+# Set working directory
 WORKDIR /app
 
+# Install system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends netcat-openbsd curl && \
-    apt-get clean && \
+    apt-get install -y --no-install-recommends \
+        netcat-openbsd \
+        curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
+# Copy dependency list and install Python packages
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt  
 
-# Copy the application code
-COPY . ingestion/
+# Copy the rest of the application code
+COPY . .
 
-# Make the script executable
-RUN chmod +x /app/ingestion/scripts/entrypoint.sh
+# Set PYTHONPATH to ensure imports work from /app
+ENV PYTHONPATH=/app
 
-ENTRYPOINT ["/app/ingestion/scripts/entrypoint.sh"]
+# Define the entrypoint
+RUN chmod +x /app/bin/entrypoint.sh
+ENTRYPOINT ["/app/bin/entrypoint.sh"]
