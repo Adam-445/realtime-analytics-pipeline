@@ -1,8 +1,5 @@
-networks:
-  analytics_net:
-    driver: bridge
-
 services:
+  # Kafka infrastructure
   zoo1:
     image: confluentinc/cp-zookeeper:7.8.0
     hostname: zoo1
@@ -57,6 +54,36 @@ services:
       - analytics_net
     restart: unless-stopped
 
+  # Flink Infrastructure
+  jobmanager:
+    build:
+      context: ../../services/processing
+      dockerfile: Dockerfile.flink
+    hostname: jobmanager
+    ports:
+      - "8081:8081"
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+    command: jobmanager
+    networks:
+      - analytics_net
+  
+  taskmanager:
+    build:
+      context: ../../services/processing
+      dockerfile: Dockerfile.flink
+    hostname: taskmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    networks:
+      - analytics_net
+
+  # Services
   ingestion:
     build:
       context: ../../services/ingestion
@@ -68,3 +95,23 @@ services:
     networks:
       - analytics_net
     restart: on-failure
+
+  processing:
+    build:
+      context: ../../services/processing
+      dockerfile: Dockerfile.processing
+    environment:
+      FLINK_PROPERTIES: "jobmanager.rpc.address: jobmanager"
+    depends_on:
+      - kafka1
+      - jobmanager
+    networks:
+      - analytics_net
+    restart: on-failure
+    command: ["bash", "/app/bin/entrypoint.sh"]
+      
+
+networks:
+  analytics_net:
+    driver: bridge
+    name: analytics_net

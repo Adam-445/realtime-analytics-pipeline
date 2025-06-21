@@ -1,0 +1,10 @@
+FROM apache/flink:2.0-scala_2.12
+
+# Install connector dependencies
+USER root
+
+# Download the Kafka connector JAR
+RUN curl -o /opt/flink/lib/flink-sql-connector-kafka-4.0.0-2.0.jar \
+    https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-kafka/4.0.0-2.0/flink-sql-connector-kafka-4.0.0-2.0.jar
+
+USER flink
