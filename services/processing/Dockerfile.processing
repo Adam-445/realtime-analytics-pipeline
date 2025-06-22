@@ -9,10 +9,21 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+
 WORKDIR /app
 
 # Install apache-flink Python package early to cache it
 RUN python3 -m pip install apache-flink==2.0.0
+
+# Download the Kafka connector JAR (same as Dockerfile.flink)
+RUN curl -fSL \
+    -o /opt/flink/lib/flink-sql-connector-kafka-4.0.0-2.0.jar \
+    https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-kafka/4.0.0-2.0/flink-sql-connector-kafka-4.0.0-2.0.jar
+
+# JSON format factory
+RUN curl -fSL \
+    -o /opt/flink/lib/flink-json-2.0.0.jar \
+    https://repo1.maven.org/maven2/org/apache/flink/flink-json/2.0.0/flink-json-2.0.0.jar
 
 # Install Python libraries
 COPY requirements.txt /app/

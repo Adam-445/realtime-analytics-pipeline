@@ -11,11 +11,8 @@ def create_topics():
     admin = AdminClient(config)
 
     topics = [
-        NewTopic(
-            settings.topic_events,
-            num_partitions=3,
-        ),
-        NewTopic(settings.topic_metrics, num_partitions=3),
+        NewTopic(settings.topic_events, num_partitions=3, replication_factor=1),
+        NewTopic(settings.topic_metrics, num_partitions=3, replication_factor=1),
     ]
 
     # Only create if doesn't exist

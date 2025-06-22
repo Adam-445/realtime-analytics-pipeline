@@ -65,6 +65,7 @@ services:
     environment:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: jobmanager
+        jobmanager.memory.process.size: 1600m
     command: jobmanager
     networks:
       - analytics_net
@@ -73,15 +74,32 @@ services:
     build:
       context: ../../services/processing
       dockerfile: Dockerfile.flink
-    hostname: taskmanager
+    hostname: taskmanager1
     environment:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: jobmanager
+        taskmanager.memory.process.size: 1728m
     depends_on:
       - jobmanager
     command: taskmanager
     networks:
       - analytics_net
+
+  # taskmanager2:
+  #   build:
+  #     context: ../../services/processing
+  #     dockerfile: Dockerfile.flink
+  #   hostname: taskmanager2
+  #   environment:
+  #     FLINK_PROPERTIES: |
+  #       jobmanager.rpc.address: jobmanager
+  #       taskmanager.memory.process.size: 1728m
+  #       taskmanager.numberOfTaskSlots: 2
+  #   depends_on:
+  #     - jobmanager
+  #   command: taskmanager
+  #   networks:
+  #     - analytics_net
 
   # Services
   ingestion:
@@ -105,6 +123,7 @@ services:
     depends_on:
       - kafka1
       - jobmanager
+      - taskmanager
     networks:
       - analytics_net
     restart: on-failure

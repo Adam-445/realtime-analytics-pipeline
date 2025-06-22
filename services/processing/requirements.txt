@@ -1,1 +1,2 @@
 pydantic-settings==2.9.1
+confluent-kafka==2.10.0
