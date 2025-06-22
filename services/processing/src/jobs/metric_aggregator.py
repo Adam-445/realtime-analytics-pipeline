@@ -62,6 +62,8 @@ def main():
                 ),
             )
             .column("timestamp", DataTypes.BIGINT())
+            # Create processing time attribute
+            .column_by_expression("proc_time", expr.call_sql("PROCTIME()"))
             # Also create event time attribute with relaxed watermark
             .column_by_expression(
                 "event_time", expr.call_sql("TO_TIMESTAMP_LTZ(`timestamp`, 3)")
