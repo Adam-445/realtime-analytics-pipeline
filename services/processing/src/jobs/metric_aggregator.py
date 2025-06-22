@@ -13,7 +13,7 @@ logger = logging.getLogger("table_metric_aggregator")
 def main():
     # Set up the environments
     env = StreamExecutionEnvironment.get_execution_environment()
-    env.set_parallelism(1)
+    env.set_parallelism(2)
     t_env = StreamTableEnvironment.create(env)
 
     # Enable checkpointing for fault tolerance
