@@ -39,6 +39,16 @@ def main():
                     ]
                 ),
             )
+            .column(
+                "device",
+                DataTypes.ROW(
+                    [
+                        DataTypes.FIELD("user_agent", DataTypes.STRING()),
+                        DataTypes.FIELD("screen_width", DataTypes.INT()),
+                        DataTypes.FIELD("screen_height", DataTypes.INT()),
+                    ]
+                ),
+            )
             .column("user", DataTypes.ROW([DataTypes.FIELD("id", DataTypes.STRING())]))
             .column(
                 "context",

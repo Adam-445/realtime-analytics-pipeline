@@ -38,6 +38,7 @@ class EventMetrics(BaseModel):
 class AnalyticsEvent(BaseModel):
     event: EventInfo
     user: UserInfo
+    device: DeviceInfo
     context: ContextInfo
     properties: dict[str, str | int | float] = Field(
         default_factory=dict, description="Custom metadata key/value pairs"
