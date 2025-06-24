@@ -9,7 +9,6 @@ wait_for_service() {
 
     echo "[INFO] Waiting for $service at $host:$port..."
     while ! nc -z "$host" "$port"; do
-        echo "[INFO] Still waiting for $service..."
         sleep 5
     done
     echo "[INFO] $service is ready!"

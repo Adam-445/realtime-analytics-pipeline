@@ -23,6 +23,8 @@ def main():
     t_env.get_config().set("table.exec.mini-batch.enabled", "true")
     t_env.get_config().set("table.exec.mini-batch.allow-latency", "5s")
     t_env.get_config().set("table.exec.mini-batch.size", "1000")
+    # 5 seconds idle timeout
+    t_env.get_config().set("table.exec.source.idle-timeout", "5000")
 
     # Declare the source table
     t_env.create_temporary_table(
@@ -72,13 +74,11 @@ def main():
                 ),
             )
             .column("timestamp", DataTypes.BIGINT())
-            # Create processing time attribute
-            .column_by_expression("proc_time", expr.call_sql("PROCTIME()"))
             # Also create event time attribute with relaxed watermark
             .column_by_expression(
                 "event_time", expr.call_sql("TO_TIMESTAMP_LTZ(`timestamp`, 3)")
             )
-            .watermark("event_time", "event_time - INTERVAL '1' MINUTE")
+            .watermark("event_time", "event_time - INTERVAL '10' SECOND")
             .build()
         )
         .option("topic", settings.topic_events)
@@ -87,7 +87,7 @@ def main():
         .option("scan.startup.mode", "earliest-offset")
         .option("format", "json")
         .option("json.fail-on-missing-field", "false")
-        .option("json.ignore-parse-errors", "true")
+        .option("json.ignore-parse-errors", "false")
         .build(),
     )
 
@@ -117,8 +117,7 @@ def main():
         events.select(
             expr.col("event").get("type").alias("event_type"),
             expr.col("user").get("id").alias("user_id"),
-            expr.col("timestamp"),
-            expr.col("proc_time"),
+            expr.col("event_time"),
         )
         .filter(
             expr.col("event_type").in_(
@@ -126,7 +125,7 @@ def main():
             )
         )
         # Use processing time tumbling window (1 minute)
-        .window(Tumble.over(expr.lit(1).minutes).on(expr.col("proc_time")).alias("w"))
+        .window(Tumble.over(expr.lit(1).minutes).on(expr.col("event_time")).alias("w"))
         .group_by(expr.col("w"), expr.col("event_type"))
         .select(
             expr.col("w").start.alias("window_start"),
