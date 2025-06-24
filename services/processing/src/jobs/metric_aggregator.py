@@ -3,7 +3,7 @@ import logging
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import DataTypes, Schema, StreamTableEnvironment, TableDescriptor
 from pyflink.table import expressions as expr
-from pyflink.table.window import Tumble
+from pyflink.table.window import Session, Tumble
 from src.core.config import settings
 
 logging.basicConfig(level=logging.INFO)
@@ -87,23 +87,44 @@ def main():
         .option("scan.startup.mode", "earliest-offset")
         .option("format", "json")
         .option("json.fail-on-missing-field", "false")
-        .option("json.ignore-parse-errors", "false")
+        .option("json.ignore-parse-errors", "true")
         .build(),
     )
 
-    # Declare the sink table for aggregated metrics
+    # Declare the sink tables
     t_env.create_temporary_table(
-        "metrics",
+        "event_metrics",
         TableDescriptor.for_connector("kafka")
         .schema(
             Schema.new_builder()
             .column("window_start", DataTypes.TIMESTAMP_LTZ(3))
             .column("window_end", DataTypes.TIMESTAMP_LTZ(3))
             .column("event_type", DataTypes.STRING())
-            .column("cnt", DataTypes.BIGINT())
+            .column("event_count", DataTypes.BIGINT())
+            .column("user_count", DataTypes.BIGINT())
             .build()
         )
-        .option("topic", settings.topic_metrics)
+        .option("topic", "event_metrics")
+        .option("properties.bootstrap.servers", settings.kafka_bootstrap)
+        .option("format", "json")
+        .build(),
+    )
+
+    t_env.create_temporary_table(
+        "session_metrics",
+        TableDescriptor.for_connector("kafka")
+        .schema(
+            Schema.new_builder()
+            .column("session_id", DataTypes.STRING())
+            .column("user_id", DataTypes.STRING())
+            .column("start_time", DataTypes.TIMESTAMP_LTZ(3))
+            .column("end_time", DataTypes.TIMESTAMP_LTZ(3))
+            .column("duration", DataTypes.BIGINT())
+            .column("page_count", DataTypes.BIGINT())
+            .column("device_type", DataTypes.STRING())
+            .build()
+        )
+        .option("topic", "session_metrics")
         .option("properties.bootstrap.servers", settings.kafka_bootstrap)
         .option("format", "json")
         .build(),
@@ -112,16 +133,22 @@ def main():
     # Build the processing pipeline
     events = t_env.from_path("events")
 
-    # Now create the main aggregation pipeline using processing time windows
-    aggregated_events = (
+    # Event aggregation
+    event_aggregation = (
         events.select(
+            expr.col("event_time"),
             expr.col("event").get("type").alias("event_type"),
             expr.col("user").get("id").alias("user_id"),
-            expr.col("event_time"),
+            # Categorise devices
+            expr.col("device")
+            .get("user_agent")
+            .like("%Mobile%")
+            .then("Mobile", "Desktop")
+            .alias("device_category"),
         )
         .filter(
             expr.col("event_type").in_(
-                expr.lit("page_view"), expr.lit("click"), expr.lit("conversion")
+                "page_view", "click", "conversion", "add_to_cart"
             )
         )
         # Use processing time tumbling window (1 minute)
@@ -131,14 +158,65 @@ def main():
             expr.col("w").start.alias("window_start"),
             expr.col("w").end.alias("window_end"),
             expr.col("event_type"),
-            expr.col("event_type").count.alias("cnt"),
+            expr.col("user_id").count.distinct.alias("user_count"),
+            expr.col("event_type").count.alias("event_count"),
         )
     )
 
-    # Execute the main aggregation job
-    logger.info("Starting main aggregation job...")
-    aggregated_events.execute_insert("metrics")
-    logger.info("Aggregation job submitted successfully")
+    # Session Tracking
+    session_base = (
+        events.select(
+            expr.col("event").get("type").alias("event_type"),
+            expr.col("event_time"),
+            expr.col("context").get("session_id").alias("session_id"),
+            expr.col("user").get("id").alias("user_id"),
+            expr.col("device")
+            .get("user_agent")
+            .like("%Mobile%")
+            .then("Mobile", "Desktop")
+            .alias("device_type"),
+        )
+        .filter(expr.col("event_type") == "page_view")
+        .window(
+            Session.with_gap(expr.lit(30).minutes).on(expr.col("event_time")).alias("w")
+        )
+        .group_by(expr.col("session_id"), expr.col("user_id"), expr.col("w"))
+        .select(
+            expr.col("session_id"),
+            expr.col("user_id"),
+            expr.col("w").start.cast(DataTypes.TIMESTAMP_LTZ(3)).alias("start_time"),
+            expr.col("w").end.cast(DataTypes.TIMESTAMP_LTZ(3)).alias("end_time"),
+            # Calculate duration using a computed column approach
+            expr.lit(0).alias(
+                "duration"
+            ),  # Placeholder - will be calculated in post-processing
+            expr.col("session_id").count.alias("page_count"),
+            expr.col("device_type").max.alias("device_type"),
+        )
+    )
+
+    # Calculate duration in a separate step
+    session_aggregation = session_base.select(
+        expr.col("session_id"),
+        expr.col("user_id"),
+        expr.col("start_time"),
+        expr.col("end_time"),
+        # Calculate duration in milliseconds using TIMESTAMPDIFF
+        expr.call_sql("TIMESTAMPDIFF(MILLISECOND, start_time, end_time)").alias(
+            "duration"
+        ),
+        expr.col("page_count"),
+        expr.col("device_type"),
+    )
+
+    # Execute the analytics jobs
+    logger.info("Starting event aggregation job...")
+    event_aggregation.execute_insert("event_metrics")
+
+    logger.info("Starting session tracking job...")
+    session_aggregation.execute_insert("session_metrics")
+
+    logger.info("All analytics jobs submitted successfully")
 
 
 if __name__ == "__main__":
