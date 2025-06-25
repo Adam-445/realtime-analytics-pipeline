@@ -23,4 +23,4 @@ sleep 5
 echo "[INFO] Submitting Flink job..."
 flink run \
     --jobmanager jobmanager:8081 \
-    --python /app/src/jobs/metric_aggregator.py
+    --python /app/src/main.py

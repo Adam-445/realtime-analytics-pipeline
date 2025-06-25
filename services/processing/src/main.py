@@ -1,0 +1,27 @@
+import logging
+
+from src.core.job_coordinator import JobCoordinator
+from src.core.logging_config import configure_logging
+from src.jobs.event_aggregator import EventAggregator
+from src.jobs.session_tracker import SessionTracker
+
+
+def main():
+    configure_logging()
+    logger = logging.getLogger("main")
+    logger.info("Starting Real-time Analytics Pipeline")
+
+    # Initialize coordinator
+    coordinator = JobCoordinator()
+
+    # Register jobs
+    coordinator.register_job(EventAggregator())
+    coordinator.register_job(SessionTracker())
+
+    # Execute all jobs
+    coordinator.execute()
+    logger.info("Pipeline execution completed")
+
+
+if __name__ == "__main__":
+    main()

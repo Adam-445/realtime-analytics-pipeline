@@ -125,8 +125,6 @@ services:
       - kafka1
       - jobmanager
       - taskmanager1
-    volumes:
-      - ../../services/processing/src:/app/src:ro
     networks:
       - analytics_net
     restart: on-failure
