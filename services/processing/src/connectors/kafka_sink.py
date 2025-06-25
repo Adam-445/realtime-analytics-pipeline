@@ -1,7 +1,7 @@
-from core.config import settings
-from core.schemas.event_metrics_sink import get_event_metrics_sink_schema
-from core.schemas.session_metrics_sink import get_session_metrics_sink_schema
 from pyflink.table import StreamTableEnvironment, TableDescriptor
+from src.core.config import settings
+from src.core.schemas.event_metrics_sink import get_event_metrics_sink_schema
+from src.core.schemas.session_metrics_sink import get_session_metrics_sink_schema
 
 
 def register_event_metrics_sink(t_env: StreamTableEnvironment):
