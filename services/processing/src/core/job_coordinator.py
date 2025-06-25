@@ -67,5 +67,6 @@ class JobCoordinator:
         # Register sinks
         kafka_sink.register_event_metrics_sink(self.t_env)
         kafka_sink.register_session_metrics_sink(self.t_env)
+        kafka_sink.register_performance_metrics_sink(self.t_env)
 
         logger.info("Registered Kafka connectors")

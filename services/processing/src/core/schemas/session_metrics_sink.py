@@ -10,6 +10,6 @@ def get_session_metrics_sink_schema():
         .column("end_time", DataTypes.TIMESTAMP_LTZ(3))
         .column("duration", DataTypes.BIGINT())
         .column("page_count", DataTypes.BIGINT())
-        .column("device_type", DataTypes.STRING())
+        .column("device_category", DataTypes.STRING())
         .build()
     )

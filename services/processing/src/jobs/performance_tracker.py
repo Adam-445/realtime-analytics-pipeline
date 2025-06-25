@@ -5,9 +5,9 @@ from src.jobs.base_job import BaseJob
 from src.transformations import device_categorizer
 
 
-class EventAggregator(BaseJob):
+class PerformanceTracker(BaseJob):
     def __init__(self):
-        super().__init__("EventAggregator", "event_metrics")
+        super().__init__("PerformanceTracker", "performance_metrics")
 
     def build_pipeline(self, t_env):
         events = t_env.from_path("events")
@@ -15,23 +15,24 @@ class EventAggregator(BaseJob):
 
         return (
             categorized.select(
-                expr.col("event_time"),
                 expr.col("event").get("type").alias("event_type"),
-                expr.col("user").get("id").alias("user_id"),
+                expr.col("event_time"),
                 expr.col("device_category"),
+                expr.col("metrics").get("load_time").alias("load_time"),
             )
-            .filter(expr.col("event_type").in_(*settings.allowed_event_types))
+            .filter(expr.col("event_type") == "page_view")
+            .filter(expr.col("load_time").is_not_null)
             .window(
-                Tumble.over(expr.lit(settings.metrics_window_size_minutes).minutes)
+                Tumble.over(expr.lit(settings.performance_window_size_minutes).minutes)
                 .on(expr.col("event_time"))
                 .alias("w")
             )
-            .group_by(expr.col("w"), expr.col("event_type"))
+            .group_by(expr.col("device_category"), expr.col("w"))
             .select(
                 expr.col("w").start.alias("window_start"),
                 expr.col("w").end.alias("window_end"),
-                expr.col("event_type"),
-                expr.col("event_type").count.alias("event_count"),
-                expr.col("user_id").count.distinct.alias("user_count"),
+                expr.col("device_category"),
+                expr.col("load_time").avg.alias("avg_load_time"),
+                expr.col("load_time").percentile(0.95).alias("p95_load_time"),
             )
         )

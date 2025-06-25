@@ -3,6 +3,7 @@ import logging
 from src.core.job_coordinator import JobCoordinator
 from src.core.logging_config import configure_logging
 from src.jobs.event_aggregator import EventAggregator
+from src.jobs.performance_tracker import PerformanceTracker
 from src.jobs.session_tracker import SessionTracker
 
 
@@ -17,6 +18,7 @@ def main():
     # Register jobs
     coordinator.register_job(EventAggregator())
     coordinator.register_job(SessionTracker())
+    coordinator.register_job(PerformanceTracker())
 
     # Execute all jobs
     coordinator.execute()

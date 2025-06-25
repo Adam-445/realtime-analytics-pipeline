@@ -20,7 +20,7 @@ class SessionTracker(BaseJob):
                 expr.col("event_time"),
                 expr.col("context").get("session_id").alias("session_id"),
                 expr.col("user").get("id").alias("user_id"),
-                expr.col("device_category").alias("device_type"),
+                expr.col("device_category"),
             )
             .filter(expr.col("event_type") == "page_view")
             .window(
@@ -37,7 +37,7 @@ class SessionTracker(BaseJob):
                 .alias("start_time"),
                 expr.col("w").end.cast(DataTypes.TIMESTAMP_LTZ(3)).alias("end_time"),
                 expr.col("session_id").count.alias("page_count"),
-                expr.col("device_type").max.alias("device_type"),
+                expr.col("device_category").max.alias("device_category"),
             )
         )
 
@@ -50,5 +50,5 @@ class SessionTracker(BaseJob):
                 "duration"
             ),
             expr.col("page_count"),
-            expr.col("device_type"),
+            expr.col("device_category"),
         )

@@ -61,8 +61,10 @@ def register_processing_metrics_sink(t_env: StreamTableEnvironment):
         .option("topic", settings.topic_processing_metrics)
         .build(),
     )
+```
 
-# Then update _register_connectors in JobCoordinator:
+Then in `src/core/job_coordinator.py` update _register_connectors in JobCoordinator:
+```python
 def _register_connectors(self):
     ...
     kafka_sink.register_processing_metrics_sink(self.t_env)

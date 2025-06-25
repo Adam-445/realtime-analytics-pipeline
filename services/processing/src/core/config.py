@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     topic_events: str = "analytics_events"
     topic_event_metrics: str = "event_metrics"
     topic_session_metrics: str = "session_metrics"
+    topic_performance_metrics: str = "performance_metrics"
     kafka_group_id: str = "flink-analytics-group"
     scan_startup_mode: str = "earliest-offset"
 
@@ -14,7 +15,8 @@ class Settings(BaseSettings):
     flink_parallelism: int = 2
     checkpoint_interval_ms: int = 30000
     watermark_delay_seconds: int = 10
-    window_size_minutes: int = 1
+    metrics_window_size_minutes: int = 1
+    performance_window_size_minutes: int = 5
     session_gap_minutes: int = 30
 
     # Event filtering

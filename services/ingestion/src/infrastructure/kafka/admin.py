@@ -16,6 +16,9 @@ def create_topics():
         NewTopic(
             settings.topic_session_metrics, num_partitions=3, replication_factor=1
         ),
+        NewTopic(
+            settings.topic_performance_metrics, num_partitions=3, replication_factor=1
+        ),
     ]
 
     # Only create if doesn't exist
