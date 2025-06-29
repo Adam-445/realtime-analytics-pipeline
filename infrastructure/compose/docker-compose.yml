@@ -102,6 +102,21 @@ services:
     networks:
       - analytics_net
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.6
+    hostname: clickhouse
+    ports:
+      - "8123:8123"  # HTTP API
+      - "9000:9000"  # Native protocol
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    environment:
+      CLICKHOUSE_DB: analytics
+      CLICKHOUSE_USER: admin
+      CLICKHOUSE_PASSWORD: admin
+    networks:
+      - analytics_net
+
   # Services
   ingestion:
     build:
@@ -129,7 +144,20 @@ services:
       - analytics_net
     restart: on-failure
     command: ["bash", "/app/bin/entrypoint.sh"]
+  
+  storage:
+    build:
+      context: ../../services/storage
+      dockerfile: Dockerfile
+    depends_on:
+      - clickhouse
+      - kafka1
+    networks:
+      - analytics_net
+    restart: unless-stopped
       
+volumes:
+  clickhouse_data:
 
 networks:
   analytics_net:
