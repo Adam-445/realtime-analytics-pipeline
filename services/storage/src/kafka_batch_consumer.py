@@ -1,6 +1,6 @@
 import json
 
-from confluent_kafka import Consumer, KafkaException
+from confluent_kafka import Consumer, KafkaError, KafkaException
 from src.core.config import settings
 
 
@@ -8,7 +8,7 @@ class KafkaBatchConsumer:
     def __init__(self, topics: list[str]):
         self.consumer = Consumer(
             {
-                "bootsrap.servers": settings.kafka_bootstrap,
+                "bootstrap.servers": settings.kafka_bootstrap,
                 "group.id": settings.consumer_group,
                 "auto.offset.reset": "earliest",
                 "enable.auto.commit": False,
@@ -26,7 +26,7 @@ class KafkaBatchConsumer:
 
         for msg in messages:
             if msg.error():
-                if msg.error().code() == KafkaException._PARTITION_EOF:
+                if msg.error().code() == KafkaError._PARTITION_EOF:
                     continue
                 raise KafkaException(msg.error())
 

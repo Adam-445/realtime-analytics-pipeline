@@ -18,5 +18,8 @@ class Settings(BaseSettings):
     batch_size: int = 1000
     poll_interval_seconds: int = 30  # Seconds between consumptions
 
+    # Logging
+    log_level: str = "INFO"
+
 
 settings = Settings()

@@ -152,6 +152,8 @@ services:
     depends_on:
       - clickhouse
       - kafka1
+    volumes:
+      - ../../services/storage/src:/app/src:ro
     networks:
       - analytics_net
     restart: unless-stopped
