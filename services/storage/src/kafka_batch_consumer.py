@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from src.core.config import settings
@@ -32,6 +33,18 @@ class KafkaBatchConsumer:
 
             try:
                 value = json.loads(msg.value().decode("utf-8"))
+
+                # Format timestamp fields since they are currently strings
+                for timestamp_field in [
+                    "window_start",
+                    "window_end",
+                    "start_time",
+                    "end_time",
+                ]:
+                    if timestamp_field in value:
+                        value[timestamp_field] = datetime.fromisoformat(
+                            value[timestamp_field].replace("Z", "+00:00")
+                        )
                 self.buffers[msg.topic()].append(value)
             except json.JSONDecodeError:
                 continue
