@@ -1,0 +1,5 @@
+pytest==8.4.1
+pytest-asyncio==1.0.0
+requests==2.32.4
+confluent-kafka==2.10.0
+clickhouse-driver==0.2.9
