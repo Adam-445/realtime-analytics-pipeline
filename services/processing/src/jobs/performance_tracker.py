@@ -23,7 +23,7 @@ class PerformanceTracker(BaseJob):
             .filter(expr.col("event_type") == "page_view")
             .filter(expr.col("load_time").is_not_null)
             .window(
-                Tumble.over(expr.lit(settings.performance_window_size_minutes).minutes)
+                Tumble.over(expr.lit(settings.performance_window_size_seconds).seconds)
                 .on(expr.col("event_time"))
                 .alias("w")
             )

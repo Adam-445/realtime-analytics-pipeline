@@ -24,7 +24,7 @@ class SessionTracker(BaseJob):
             )
             .filter(expr.col("event_type") == "page_view")
             .window(
-                Session.with_gap(expr.lit(settings.session_gap_minutes).minutes)
+                Session.with_gap(expr.lit(settings.session_gap_seconds).seconds)
                 .on(expr.col("event_time"))
                 .alias("w")
             )

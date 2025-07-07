@@ -22,7 +22,7 @@ class EventAggregator(BaseJob):
             )
             .filter(expr.col("event_type").in_(*settings.allowed_event_types))
             .window(
-                Tumble.over(expr.lit(settings.metrics_window_size_minutes).minutes)
+                Tumble.over(expr.lit(settings.metrics_window_size_seconds).seconds)
                 .on(expr.col("event_time"))
                 .alias("w")
             )
