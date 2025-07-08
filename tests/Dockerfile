@@ -15,5 +15,6 @@ RUN apt-get update && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+ENV PYTHONPATH=/tests:/app
 # Keep the container running so we can execute tests in it.
 CMD ["tail", "-f", "/dev/null"]

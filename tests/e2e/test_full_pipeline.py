@@ -5,7 +5,7 @@ import uuid
 import pytest
 import requests
 
-from tests.tests_helpers import wait_for_window_and_advance_watermark
+from tests.helpers.watermark import wait_for_window_and_advance_watermark
 
 SESSION_GAP_SECONDS = int(os.environ.get("SESSION_GAP_SECONDS", "1800"))
 
