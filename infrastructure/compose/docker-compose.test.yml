@@ -1,25 +1,19 @@
 services:
-  # Application Services (modified to use test environment variables)
   processing:
     env_file: .env.test
-    environment:
-      - METRICS_WINDOW_SIZE_SECONDS=${METRICS_WINDOW_SIZE_SECONDS}
-      - PERFORMANCE_WINDOW_SIZE_SECONDS=${PERFORMANCE_WINDOW_SIZE_SECONDS}
-      - SESSION_GAP_SECONDS=${SESSION_GAP_SECONDS}
 
   storage:
     env_file: .env.test
-    environment:
-      - POLL_INTERVAL_SECONDS=${POLL_INTERVAL_SECONDS}
 
-  # Our new centralized test runner
   test-runner:
+    env_file:
+      - .env.test
     build:
       context: ../../tests
       dockerfile: Dockerfile
     volumes:
-      - ../../services:/app/services:ro # Mount services code (read-only)
-      - ../../tests:/tests # Mount test code
+      - ../../services:/app/services:ro
+      - ../../tests:/tests:ro
     depends_on:
       - ingestion
       - processing
