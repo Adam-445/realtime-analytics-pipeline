@@ -1,3 +1,4 @@
+from core.config import settings
 from pyflink.table import DataTypes, Schema
 
 
@@ -47,6 +48,9 @@ def get_event_source_schema():
         )
         .column("timestamp", DataTypes.BIGINT())
         .column_by_expression("event_time", "TO_TIMESTAMP_LTZ(`timestamp`, 3)")
-        .watermark("event_time", "event_time - INTERVAL '10' SECOND")
+        .watermark(
+            "event_time",
+            f"event_time - INTERVAL '{settings.watermark_delay_seconds}' SECOND",
+        )
         .build()
     )

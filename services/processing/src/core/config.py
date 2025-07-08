@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     flink_parallelism: int = 2
     checkpoint_interval_ms: int = 30000
     watermark_delay_seconds: int = 10
+    idle_timeout_seconds: int = 5
     metrics_window_size_seconds: int = 60
     performance_window_size_seconds: int = 300
     session_gap_seconds: int = 1800

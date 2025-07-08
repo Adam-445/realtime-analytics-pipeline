@@ -1,9 +1,3 @@
-# RUN mkdir -p /opt/flink/usrlib
-
-# RUN curl -fSL \
-#     -o /opt/flink/usrlib/flink-connector-kafka_2.12-1.9.3.jar \
-#     https://repo1.maven.org/maven2/org/apache/flink/flink-connector-kafka_2.12/1.9.3/flink-connector-kafka_2.12-1.9.3.jar
-
 FROM apache/flink:2.0-scala_2.12
 
 # Install connector dependencies

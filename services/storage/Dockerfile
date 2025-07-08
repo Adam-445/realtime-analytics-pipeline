@@ -7,10 +7,10 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-         netcat-openbsd \
-        curl \
-        gcc \
-        libc-dev && \
+    netcat-openbsd \
+    curl \
+    gcc \
+    libc-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy dependency list and install Python packages

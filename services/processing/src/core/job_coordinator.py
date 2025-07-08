@@ -29,7 +29,9 @@ class JobCoordinator:
         table_config.set("table.exec.mini-batch.allow-latency", "5s")
         table_config.set("table.exec.mini-batch.size", "1000")
         # Set idle timeout to prevent stalling
-        table_config.set("table.exec.source.idle-timeout", "5000")
+        table_config.set(
+            "table.exec.source.idle-timeout", f"{settings.idle_timeout_seconds}s"
+        )
 
         logger.info("Flink environment configured")
 
