@@ -1,4 +1,5 @@
 import time
+import uuid
 
 import requests
 
@@ -15,13 +16,13 @@ def advance_watermark(api_url: str, future_seconds: int = 60):
     future_timestamp = (int(time.time()) + future_seconds) * 1000
 
     watermark_event = {
-        "event": {"type": "page_view"},
-        "user": {"id": "watermark_user"},
+        "event": {"type": "__watermark__"},
+        "user": {"id": f"watermark_user_{uuid.uuid4()}"},
         "context": {
             "url": "https://example.com/home",
             "referrer": "https://google.com/",
             "ip_address": "192.168.1.1",
-            "session_id": "watermark_sess",
+            "session_id": f"watermark_sess_{uuid.uuid4()}",
         },
         "device": {
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
