@@ -12,11 +12,12 @@ class PerformanceTracker(BaseJob):
     def build_pipeline(self, t_env):
         events = t_env.from_path("events")
         categorized = device_categorizer.categorize_device(events)
+        time_col = "event_time" if settings.environment == "production" else "proc_time"
 
         return (
             categorized.select(
                 expr.col("event").get("type").alias("event_type"),
-                expr.col("event_time"),
+                expr.col(time_col),
                 expr.col("device_category"),
                 expr.col("metrics").get("load_time").alias("load_time"),
             )
@@ -24,7 +25,7 @@ class PerformanceTracker(BaseJob):
             .filter(expr.col("load_time").is_not_null)
             .window(
                 Tumble.over(expr.lit(settings.performance_window_size_seconds).seconds)
-                .on(expr.col("event_time"))
+                .on(expr.col(time_col))
                 .alias("w")
             )
             .group_by(expr.col("device_category"), expr.col("w"))

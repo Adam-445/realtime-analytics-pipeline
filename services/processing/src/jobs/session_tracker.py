@@ -13,11 +13,12 @@ class SessionTracker(BaseJob):
     def build_pipeline(self, t_env):
         events = t_env.from_path("events")
         categorized = device_categorizer.categorize_device(events)
+        time_col = "event_time" if settings.environment == "production" else "proc_time"
 
         session_base = (
             categorized.select(
                 expr.col("event").get("type").alias("event_type"),
-                expr.col("event_time"),
+                expr.col(time_col),
                 expr.col("context").get("session_id").alias("session_id"),
                 expr.col("user").get("id").alias("user_id"),
                 expr.col("device_category"),
@@ -25,7 +26,7 @@ class SessionTracker(BaseJob):
             .filter(expr.col("event_type") == "page_view")
             .window(
                 Session.with_gap(expr.lit(settings.session_gap_seconds).seconds)
-                .on(expr.col("event_time"))
+                .on(expr.col(time_col))
                 .alias("w")
             )
             .group_by(expr.col("session_id"), expr.col("user_id"), expr.col("w"))
