@@ -32,6 +32,9 @@ class JobCoordinator:
         table_config.set(
             "table.exec.source.idle-timeout", f"{settings.idle_timeout_seconds}s"
         )
+        table_config.set(
+            "table.exec.resource.default-parallelism", str(settings.flink_parallelism)
+        )
 
         logger.info("Flink environment configured")
 

@@ -3,7 +3,7 @@ from pyflink.table import DataTypes, Schema
 
 
 def get_event_source_schema():
-    return (
+    builder = (
         Schema.new_builder()
         .column(
             "event",
@@ -48,9 +48,14 @@ def get_event_source_schema():
         )
         .column("timestamp", DataTypes.BIGINT())
         .column_by_expression("event_time", "TO_TIMESTAMP_LTZ(`timestamp`, 3)")
-        .watermark(
+    )
+
+    if settings.environment == "production":
+        builder = builder.watermark(
             "event_time",
             f"event_time - INTERVAL '{settings.watermark_delay_seconds}' SECOND",
         )
-        .build()
-    )
+    else:
+        builder = builder.column_by_expression("proc_time", "PROCTIME()")
+
+    return builder.build()

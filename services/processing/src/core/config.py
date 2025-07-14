@@ -26,5 +26,7 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
+    environment: str = "production"
+
 
 settings = Settings()
