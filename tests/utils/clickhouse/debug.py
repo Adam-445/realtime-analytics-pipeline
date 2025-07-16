@@ -1,5 +1,5 @@
 def debug_database_state(
-    clickhouse_client, print_tables: bool = False, tables: list = []
+    clickhouse_client, print_tables: bool = False, tables: list | None = None
 ):
     """
     Helper function to debug the current state of all tables

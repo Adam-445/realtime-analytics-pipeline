@@ -1,13 +1,12 @@
 import time
 import uuid
-from typing import Optional
 
 import requests
 
 
 def send_event(
     event_payload: dict,
-    timestamp_override: Optional[int] = None,
+    timestamp_override: int | None = None,
     api_url: str = "http://ingestion:8000/v1/analytics/track",
 ) -> int:
     """
@@ -29,12 +28,13 @@ def send_event(
 
     return event_timestamp
 
+
 def create_test_event(
     event_type: str = "page_view",
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
     load_time: int = 120,
-    timestamp: Optional[int] = None,
+    timestamp: int | None = None,
 ) -> dict:
     """
     Create a standardized test event payload.
@@ -50,7 +50,7 @@ def create_test_event(
             "session_id": session_id or f"test-session-{uuid.uuid4()}",
         },
         "device": {
-            "user_agent": "E2E-Test-Agent",
+            "user_agent": "Test-Agent",
             "screen_width": 1920,
             "screen_height": 1080,
         },
@@ -58,4 +58,3 @@ def create_test_event(
         "metrics": {"load_time": load_time, "interaction_time": 800},
         "timestamp": ts,
     }
-
