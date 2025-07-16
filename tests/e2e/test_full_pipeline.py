@@ -110,3 +110,54 @@ def test_event_aggregator_counts_multiple_events(clickhouse_client, test_config)
 
     assert aggregated_data["conversion"]["events"] == 1
     assert aggregated_data["conversion"]["users"] == 1  # user-c
+
+def test_performance_tracker_calculates_metrics(
+    clickhouse_client, test_config
+):
+    """
+    Tests that the PerformanceTracker correctly calculates load time metrics.
+    """
+    base_timestamp = int(time.time() * 1000)
+
+    # Create events with different load times
+    load_times = [100, 200, 300, 400, 500]  # milliseconds
+
+    for i, load_time in enumerate(load_times):
+        event_payload = create_test_event(
+            event_type="page_view",
+            user_id=f"perf-user-{i}",
+            session_id=f"perf-session-{i}",
+            load_time=load_time,
+        )
+
+        send_event(
+            event_payload, timestamp_override=base_timestamp + i * 1000
+        )
+
+    # Wait for performance window to complete
+    time.sleep(test_config["performance_window_size_seconds"] + 1)
+
+    # Query for performance metrics
+    query = """
+    SELECT device_category, avg_load_time, p95_load_time
+    FROM performance_metrics
+    WHERE device_category = 'Desktop'
+    """
+
+    result = poll_for_data(
+        clickhouse_client=clickhouse_client,
+        query=query,
+        max_wait_time=test_config["max_wait_time"],
+        poll_interval=test_config["poll_interval"],
+        expected_count=1,
+    )
+
+    # Verify performance calculations
+    performance_data = result[0]
+    device_category = performance_data[0]
+    avg_load_time = performance_data[1]
+    p95_load_time = performance_data[2]
+
+    assert device_category == "Desktop"
+    assert avg_load_time == 300.0  # Average of [100, 200, 300, 400, 500]
+    assert p95_load_time >= 400.0  # 95th percentile should be >= 400
