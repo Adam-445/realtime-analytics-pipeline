@@ -68,5 +68,5 @@ def test_config() -> dict:
         "max_wait_time": 30,
         "poll_interval": 2,
     }
-    print("Loaded test_config:", config)
+    # print("Loaded test_config:", config)
     return config
