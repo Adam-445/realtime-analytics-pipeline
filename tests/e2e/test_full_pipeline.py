@@ -1,6 +1,8 @@
 import time
 import uuid
 
+import pytest
+
 from tests.utils.clickhouse.poll import poll_for_data
 from tests.utils.ingestion.events import create_test_event, send_event
 
@@ -111,9 +113,8 @@ def test_event_aggregator_counts_multiple_events(clickhouse_client, test_config)
     assert aggregated_data["conversion"]["events"] == 1
     assert aggregated_data["conversion"]["users"] == 1  # user-c
 
-def test_performance_tracker_calculates_metrics(
-    clickhouse_client, test_config
-):
+
+def test_performance_tracker_calculates_metrics(clickhouse_client, test_config):
     """
     Tests that the PerformanceTracker correctly calculates load time metrics.
     """
@@ -130,9 +131,7 @@ def test_performance_tracker_calculates_metrics(
             load_time=load_time,
         )
 
-        send_event(
-            event_payload, timestamp_override=base_timestamp + i * 1000
-        )
+        send_event(event_payload, timestamp_override=base_timestamp + i * 1000)
 
     # Wait for performance window to complete
     time.sleep(test_config["performance_window_size_seconds"] + 1)
@@ -161,3 +160,45 @@ def test_performance_tracker_calculates_metrics(
     assert device_category == "Desktop"
     assert avg_load_time == 300.0  # Average of [100, 200, 300, 400, 500]
     assert p95_load_time >= 400.0  # 95th percentile should be >= 400
+
+
+@pytest.mark.parametrize(
+    "event_type", ["page_view", "click", "conversion", "add_to_cart"]
+)
+def test_different_event_types_are_processed(
+    clickhouse_client, test_config, event_type
+):
+    """
+    Parametrized test to ensure all allowed event types are processed correctly.
+    """
+    user_id = f"type-user-{uuid.uuid4()}"
+
+    event_payload = create_test_event(event_type=event_type, user_id=user_id)
+
+    send_event(event_payload)
+
+    # Wait for metrics window
+    time.sleep(test_config["metrics_window_size_seconds"] + 1)
+
+    # Query for the event in metrics
+    query = """
+    SELECT event_type, event_count, user_count
+    FROM event_metrics
+    WHERE event_type = %(event_type)s
+    """
+    params = {"event_type": event_type}
+
+    result = poll_for_data(
+        clickhouse_client=clickhouse_client,
+        query=query,
+        params=params,
+        max_wait_time=test_config["max_wait_time"],
+        poll_interval=test_config["poll_interval"],
+        expected_count=1,
+    )
+
+    # Verify the event was processed
+    metrics_data = result[0]
+    assert metrics_data[0] == event_type
+    assert metrics_data[1] == 1  # event_count
+    assert metrics_data[2] == 1  # user_count
