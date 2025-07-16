@@ -12,8 +12,8 @@ def register_event_metrics_sink(t_env: StreamTableEnvironment):
         "event_metrics",
         TableDescriptor.for_connector("kafka")
         .schema(get_event_metrics_sink_schema())
-        .option("topic", settings.topic_event_metrics)
-        .option("properties.bootstrap.servers", settings.kafka_bootstrap)
+        .option("topic", settings.kafka_topic_event_metrics)
+        .option("properties.bootstrap.servers", settings.kafka_bootstrap_servers)
         .option("format", "json")
         .option("sink.transactional-id-prefix", "event-metrics-")
         .build(),
@@ -25,8 +25,8 @@ def register_session_metrics_sink(t_env: StreamTableEnvironment):
         "session_metrics",
         TableDescriptor.for_connector("kafka")
         .schema(get_session_metrics_sink_schema())
-        .option("topic", settings.topic_session_metrics)
-        .option("properties.bootstrap.servers", settings.kafka_bootstrap)
+        .option("topic", settings.kafka_topic_session_metrics)
+        .option("properties.bootstrap.servers", settings.kafka_bootstrap_servers)
         .option("format", "json")
         .option("sink.transactional-id-prefix", "session-metrics-")
         .build(),
@@ -38,8 +38,8 @@ def register_performance_metrics_sink(t_env: StreamTableEnvironment):
         "performance_metrics",
         TableDescriptor.for_connector("kafka")
         .schema(get_performance_metrics_sink_schema())
-        .option("topic", settings.topic_performance_metrics)
-        .option("properties.bootstrap.servers", settings.kafka_bootstrap)
+        .option("topic", settings.kafka_topic_performance_metrics)
+        .option("properties.bootstrap.servers", settings.kafka_bootstrap_servers)
         .option("format", "json")
         .option("sink.transactional-id-prefix", "performance-metrics-")
         .build(),

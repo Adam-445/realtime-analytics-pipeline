@@ -9,8 +9,8 @@ class KafkaBatchConsumer:
     def __init__(self, topics: list[str]):
         self.consumer = Consumer(
             {
-                "bootstrap.servers": settings.kafka_bootstrap,
-                "group.id": settings.consumer_group,
+                "bootstrap.servers": settings.kafka_bootstrap_servers,
+                "group.id": settings.storage_kafka_consumer_group,
                 "auto.offset.reset": "earliest",
                 "enable.auto.commit": False,
             }
@@ -20,7 +20,9 @@ class KafkaBatchConsumer:
 
     def consume_batch(self) -> dict[str, list]:
         """Poll Kafka and return batched messages by topic"""
-        messages = self.consumer.consume(num_messages=settings.batch_size, timeout=1.0)
+        messages = self.consumer.consume(
+            num_messages=settings.storage_batch_size, timeout=1.0
+        )
 
         if not messages:
             return {}

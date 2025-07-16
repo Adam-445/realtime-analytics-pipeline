@@ -3,9 +3,13 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Kafka
-    kafka_bootstrap: str = "kafka1:19092"
-    topics: list[str] = ["event_metrics", "session_metrics", "performance_metrics"]
-    consumer_group: str = "clickhouse-storage"
+    kafka_bootstrap_servers: str = "kafka1:19092"
+    kafka_consumer_topics: list[str] = [
+        "event_metrics",
+        "session_metrics",
+        "performance_metrics",
+    ]
+    storage_kafka_consumer_group: str = "clickhouse-storage"
 
     # Clickhouse
     clickhouse_host: str = "clickhouse"
@@ -15,11 +19,11 @@ class Settings(BaseSettings):
     clickhouse_password: str = "admin"
 
     # Batching
-    batch_size: int = 1000
-    poll_interval_seconds: int = 30  # Seconds between consumptions
+    storage_batch_size: int = 1000
+    storage_poll_interval_seconds: int = 30  # Seconds between consumptions
 
     # Logging
-    log_level: str = "INFO"
+    app_log_level: str = "INFO"
 
 
 settings = Settings()

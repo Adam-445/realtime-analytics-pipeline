@@ -7,17 +7,21 @@ logger = logging.getLogger("kafka.admin")
 
 
 def create_topics():
-    config = {"bootstrap.servers": settings.kafka_bootstrap}
+    config = {"bootstrap.servers": settings.kafka_bootstrap_servers}
     admin = AdminClient(config)
 
     topics = [
-        NewTopic(settings.topic_events, num_partitions=3, replication_factor=1),
-        NewTopic(settings.topic_event_metrics, num_partitions=3, replication_factor=1),
+        NewTopic(settings.kafka_topic_events, num_partitions=3, replication_factor=1),
         NewTopic(
-            settings.topic_session_metrics, num_partitions=3, replication_factor=1
+            settings.kafka_topic_event_metrics, num_partitions=3, replication_factor=1
         ),
         NewTopic(
-            settings.topic_performance_metrics, num_partitions=3, replication_factor=1
+            settings.kafka_topic_session_metrics, num_partitions=3, replication_factor=1
+        ),
+        NewTopic(
+            settings.kafka_topic_performance_metrics,
+            num_partitions=3,
+            replication_factor=1,
         ),
     ]
 
