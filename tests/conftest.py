@@ -1,11 +1,15 @@
 import os
+import time
 
 import pytest
 from clickhouse_driver import Client
 
-CLICKHOUSE_HOST = os.environ.get("CLICKHOUSE_HOST", "clickhouse")
-CLICKHOUSE_PORT = os.environ.get("CLICKHOUSE_PORT", 9000)
-CLICKHOUSE_DB = os.environ.get("CLICKHOUSE_DB", "analytics")
+# ClickHouse connection defaults
+CLICKHOUSE_HOST = os.getenv("CLICKHOUSE_HOST", "clickhouse")
+CLICKHOUSE_PORT = int(os.getenv("CLICKHOUSE_PORT", "9000"))
+CLICKHOUSE_DB = os.getenv("CLICKHOUSE_DB", "analytics")
+CLICKHOUSE_USER = os.getenv("CLICKHOUSE_USER", "admin")
+CLICKHOUSE_PASS = os.getenv("CLICKHOUSE_PASS", "admin")
 
 TABLES_TO_CLEAN = [
     "event_metrics",
@@ -16,27 +20,47 @@ TABLES_TO_CLEAN = [
 
 @pytest.fixture(scope="module")
 def clickhouse_client():
-    """
-    Creates a ClickHouse client fixture for tests once per module.
-    """
+    """ClickHouse client, connected once per test module."""
     client = Client(
         host=CLICKHOUSE_HOST,
-        port=int(CLICKHOUSE_PORT),
-        user="admin",
-        password="admin",
+        port=CLICKHOUSE_PORT,
+        user=CLICKHOUSE_USER,
+        password=CLICKHOUSE_PASS,
         database=CLICKHOUSE_DB,
     )
-    # Verify connection
-    client.execute("SELECT 1")
+    try:
+        client.execute("SELECT 1")
+    except Exception as e:
+        pytest.exit(
+            f"Cannot connect to ClickHouse at {CLICKHOUSE_HOST}:{CLICKHOUSE_PORT}: {e}"
+        )
     yield client
     client.disconnect()
 
 
-@pytest.fixture(autouse=True)
-def clean_clickhouse_tables(clickhouse_client):
+@pytest.fixture(scope="function", autouse=True)
+def clean_test_environment(clickhouse_client: Client):
     """
-    Truncates analytics tables before each test function.
+    Truncate all test tables before each test function.
+    Adds a brief pause to allow upstream sinks (e.g. Flink) to quiesce.
     """
-    for table in TABLES_TO_CLEAN:
-        clickhouse_client.execute(f"TRUNCATE TABLE IF EXISTS {table}")
-    yield
+    for tbl in TABLES_TO_CLEAN:
+        clickhouse_client.execute(f"TRUNCATE TABLE IF EXISTS {tbl}")
+    time.sleep(1)
+
+
+@pytest.fixture(scope="session")
+def test_config() -> dict:
+    """Session-wide default test configuration"""
+    return {
+        "session_gap_seconds": int(os.getenv("SESSION_GAP_SECONDS", "1800")),
+        "metrics_window_size_seconds": int(
+            os.getenv("METRICS_WINDOW_SIZE_SECONDS", "60")
+        ),
+        "performance_window_size_seconds": int(
+            os.getenv("PERFORMANCE_WINDOW_SIZE_SECONDS", "300")
+        ),
+        "watermark_delay_seconds": int(os.getenv("WATERMARK_DELAY_SECONDS", "10")),
+        "max_wait_time": 30,
+        "poll_interval": 2,
+    }
