@@ -11,18 +11,8 @@ def create_topics():
     admin = AdminClient(config)
 
     topics = [
-        NewTopic(settings.kafka_topic_events, num_partitions=3, replication_factor=1),
-        NewTopic(
-            settings.kafka_topic_event_metrics, num_partitions=3, replication_factor=1
-        ),
-        NewTopic(
-            settings.kafka_topic_session_metrics, num_partitions=3, replication_factor=1
-        ),
-        NewTopic(
-            settings.kafka_topic_performance_metrics,
-            num_partitions=3,
-            replication_factor=1,
-        ),
+        NewTopic(topic, num_partitions=3, replication_factor=1)
+        for topic in settings.kafka_consumer_topics
     ]
 
     # Only create if doesn't exist
