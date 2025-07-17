@@ -171,9 +171,11 @@ services:
     networks:
       - analytics_net
     restart: unless-stopped
-      
+
 volumes:
   clickhouse_data:
+  prometheus_data:
+
 
 networks:
   analytics_net:
