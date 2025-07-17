@@ -50,10 +50,10 @@ def get_event_source_schema():
         .column_by_expression("event_time", "TO_TIMESTAMP_LTZ(`timestamp`, 3)")
     )
 
-    if settings.environment == "production":
+    if settings.app_environment == "production":
         builder = builder.watermark(
             "event_time",
-            f"event_time - INTERVAL '{settings.watermark_delay_seconds}' SECOND",
+            f"event_time - INTERVAL '{settings.flink_watermark_delay_seconds}' SECOND",
         )
     else:
         builder = builder.column_by_expression("proc_time", "PROCTIME()")

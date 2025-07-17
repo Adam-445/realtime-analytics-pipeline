@@ -11,7 +11,7 @@ from src.kafka_batch_consumer import KafkaBatchConsumer
 def wait_for_topics(topics: list[str], max_retries: int = 30, initial_delay: int = 5):
     """Wait for Kafka topics to be available with exponential backoff"""
     logger = logging.getLogger("batch_processor")
-    admin_client = AdminClient({"bootstrap.servers": settings.kafka_bootstrap})
+    admin_client = AdminClient({"bootstrap.servers": settings.kafka_bootstrap_servers})
 
     for attempt in range(max_retries):
         try:
@@ -47,13 +47,13 @@ def main():
     logger.info("Starting Clickhouse storage service")
 
     # Wait for topics to be available before creating consumer
-    logger.info(f"Waiting for topics: {settings.topics}")
-    wait_for_topics(settings.topics)
+    logger.info(f"Waiting for topics: {settings.kafka_consumer_topics}")
+    wait_for_topics(settings.kafka_consumer_topics)
 
     ch_client = ClickHouseClient()
-    consumer = KafkaBatchConsumer(settings.topics)
+    consumer = KafkaBatchConsumer(settings.kafka_consumer_topics)
 
-    logger.info(f"Consuming from topics {', '.join(settings.topics)}")
+    logger.info(f"Consuming from topics {', '.join(settings.kafka_consumer_topics)}")
 
     while True:
         try:
@@ -66,7 +66,7 @@ def main():
                 logger.info(f"Inserted {len(batch)} records into {topic}")
 
             consumer.commit()
-            time.sleep(settings.poll_interval_seconds)
+            time.sleep(settings.storage_poll_interval_seconds)
 
         except Exception as e:
             logger.error(f"Processing error: {str(e)}")

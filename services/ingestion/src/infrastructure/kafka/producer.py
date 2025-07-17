@@ -11,14 +11,14 @@ class EventProducer:
     def __init__(self):
         self.producer = Producer(
             {
-                "bootstrap.servers": settings.kafka_bootstrap,
+                "bootstrap.servers": settings.kafka_bootstrap_servers,
                 "message.max.bytes": 10_485_760,  # 10 MB
                 "acks": "all",
                 "batch.size": 1_048_576,  # 1MB batches
                 "linger.ms": 20,  # Wait up to 20ms for batching
             }
         )
-        self.topic = settings.topic_events
+        self.topic = settings.kafka_topic_events
 
     def _delivery_report(self, err, msg):
         if err:

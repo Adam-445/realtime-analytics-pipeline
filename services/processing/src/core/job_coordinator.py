@@ -17,7 +17,7 @@ class JobCoordinator:
     def _configure_environment(self):
         """Configure Flink environment settings"""
         self.env.set_parallelism(settings.flink_parallelism)
-        self.env.enable_checkpointing(settings.checkpoint_interval_ms)
+        self.env.enable_checkpointing(settings.flink_checkpoint_interval_ms)
 
         # Configure table environment
         table_config = self.t_env.get_config()
@@ -30,7 +30,7 @@ class JobCoordinator:
         table_config.set("table.exec.mini-batch.size", "1000")
         # Set idle timeout to prevent stalling
         table_config.set(
-            "table.exec.source.idle-timeout", f"{settings.idle_timeout_seconds}s"
+            "table.exec.source.idle-timeout", f"{settings.flink_idle_timeout_seconds}s"
         )
         table_config.set(
             "table.exec.resource.default-parallelism", str(settings.flink_parallelism)

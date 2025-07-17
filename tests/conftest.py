@@ -52,15 +52,21 @@ def clean_test_environment(clickhouse_client: Client):
 @pytest.fixture(scope="session")
 def test_config() -> dict:
     """Session-wide default test configuration"""
-    return {
-        "session_gap_seconds": int(os.getenv("SESSION_GAP_SECONDS", "1800")),
-        "metrics_window_size_seconds": int(
-            os.getenv("METRICS_WINDOW_SIZE_SECONDS", "60")
+    config = {
+        "processing_session_gap_seconds": int(
+            os.getenv("PROCESSING_SESSION_GAP_SECONDS", "1800")
         ),
-        "performance_window_size_seconds": int(
-            os.getenv("PERFORMANCE_WINDOW_SIZE_SECONDS", "300")
+        "processing_metrics_window_size_seconds": int(
+            os.getenv("PROCESSING_METRICS_WINDOW_SIZE_SECONDS", "60")
         ),
-        "watermark_delay_seconds": int(os.getenv("WATERMARK_DELAY_SECONDS", "10")),
+        "processing_performance_window_size_seconds": int(
+            os.getenv("PROCESSING_PERFORMANCE_WINDOW_SIZE_SECONDS", "300")
+        ),
+        "flink_watermark_delay_seconds": int(
+            os.getenv("FLINK_WATERMARK_DELAY_SECONDS", "10")
+        ),
         "max_wait_time": 30,
         "poll_interval": 2,
     }
+    # print("Loaded test_config:", config)
+    return config

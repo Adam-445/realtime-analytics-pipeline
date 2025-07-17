@@ -28,12 +28,13 @@ def test_happy_path_page_view_event_is_processed(
     print(f"Sent event with timestamp: {event_timestamp}")
 
     # Wait for session window to complete
-    time.sleep(test_config["session_gap_seconds"] + 1)
+    time.sleep(test_config["processing_session_gap_seconds"] + 1)
 
     # Query for the processed session
     query = """
-    SELECT session_id, user_id, start_time, end_time, duration, page_count, device_category
-    FROM session_metrics 
+    SELECT session_id, user_id, start_time, end_time, duration, page_count,
+           device_category
+    FROM session_metrics
     WHERE user_id = %(user_id)s AND session_id = %(session_id)s
     """
     params = {"user_id": user_id, "session_id": session_id}
@@ -57,7 +58,8 @@ def test_happy_path_page_view_event_is_processed(
 
 def test_event_aggregator_counts_multiple_events(clickhouse_client, test_config):
     """
-    Tests that the EventAggregator correctly counts different event types within a single window.
+    Tests that the EventAggregator correctly counts different event types within a
+    single window.
     """
     # Use a consistent timestamp base for all events in the same window
     base_timestamp = int(time.time() * 1000)
@@ -83,12 +85,12 @@ def test_event_aggregator_counts_multiple_events(clickhouse_client, test_config)
         )
 
     # Wait for metrics window to complete
-    time.sleep(test_config["metrics_window_size_seconds"] + 1)
+    time.sleep(test_config["processing_metrics_window_size_seconds"] + 1)
 
     # Query for aggregated metrics
     query = """
-    SELECT event_type, event_count, user_count 
-    FROM event_metrics 
+    SELECT event_type, event_count, user_count
+    FROM event_metrics
     ORDER BY event_type
     """
 
@@ -134,7 +136,7 @@ def test_performance_tracker_calculates_metrics(clickhouse_client, test_config):
         send_event(event_payload, timestamp_override=base_timestamp + i * 1000)
 
     # Wait for performance window to complete
-    time.sleep(test_config["performance_window_size_seconds"] + 1)
+    time.sleep(test_config["processing_performance_window_size_seconds"] + 1)
 
     # Query for performance metrics
     query = """
@@ -178,7 +180,7 @@ def test_different_event_types_are_processed(
     send_event(event_payload)
 
     # Wait for metrics window
-    time.sleep(test_config["metrics_window_size_seconds"] + 1)
+    time.sleep(test_config["processing_metrics_window_size_seconds"] + 1)
 
     # Query for the event in metrics
     query = """
