@@ -58,14 +58,18 @@ services:
     hostname: jobmanager
     ports:
       - "8081:8081"
+      - "9249:9249"
     environment:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: jobmanager
         jobmanager.memory.process.size: 1600m
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
+
     command: jobmanager
     networks:
       - analytics_net
-  
+
   taskmanager1:
     build:
       context: ../../services/processing
@@ -110,6 +114,20 @@ services:
       CLICKHOUSE_DB: analytics
       CLICKHOUSE_USER: admin
       CLICKHOUSE_PASSWORD: admin
+    networks:
+      - analytics_net
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
     networks:
       - analytics_net
 
