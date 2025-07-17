@@ -106,8 +106,8 @@ services:
     image: clickhouse/clickhouse-server:25.6
     hostname: clickhouse
     ports:
-      - "8123:8123"  # HTTP API
-      - "9000:9000"  # Native protocol
+      - "8123:8123" # HTTP API
+      - "9000:9000" # Native protocol
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     environment:
