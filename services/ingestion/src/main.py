@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 from src.api.v1.dependencies import get_kafka_producer
 from src.api.v1.endpoints import track
 from src.core.logging_config import configure_logging
@@ -22,5 +23,6 @@ app = FastAPI(
     title="Real-time Analytics Ingestion API", version="0.2.2", lifespan=lifespan
 )
 
-# Include routers
+Instrumentator().instrument(app).expose(app)
+
 app.include_router(track.router, prefix="/v1/analytics")
