@@ -4,4 +4,5 @@ pydantic-settings==2.9.1
 uvicorn[standard]==0.34.2
 confluent-kafka==2.10.0
 uuid6==2025.0.0
+prometheus-fastapi-instrumentator==7.1.0
 uuid==1.30
