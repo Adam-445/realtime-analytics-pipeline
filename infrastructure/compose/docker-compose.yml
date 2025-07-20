@@ -174,11 +174,13 @@ services:
     build:
       context: ../../services/storage
       dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - ../../services/storage/src:/app/src:ro
     depends_on:
       - clickhouse
       - kafka1
-    volumes:
-      - ../../services/storage/src:/app/src:ro
     networks:
       - analytics_net
     restart: unless-stopped

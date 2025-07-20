@@ -2,16 +2,22 @@ import logging
 import time
 
 from confluent_kafka.admin import AdminClient
+from prometheus_client import Counter, start_http_server
 from src.clickhouse_client import ClickHouseClient
 from src.core.config import settings
 from src.core.logging_config import configure_logging
 from src.kafka_batch_consumer import KafkaBatchConsumer
+
+STORAGE_BATCHES = Counter("storage_batches_total", "Total batches processed")
+STORAGE_RECORDS = Counter("storage_records_total", "Total records stored")
+STORAGE_ERRORS = Counter("storage_errors_total", "Storage processing errors")
 
 
 def wait_for_topics(topics: list[str], max_retries: int = 30, initial_delay: int = 5):
     """Wait for Kafka topics to be available with exponential backoff"""
     logger = logging.getLogger("batch_processor")
     admin_client = AdminClient({"bootstrap.servers": settings.kafka_bootstrap_servers})
+    missing_topics = set(topics)
 
     for attempt in range(max_retries):
         try:
@@ -46,6 +52,10 @@ def main():
     logger = logging.getLogger("batch_processor")
     logger.info("Starting Clickhouse storage service")
 
+    metrics_port = 8001
+    start_http_server(metrics_port)
+    logger.info(f"Prometheus metrics exposed on port {metrics_port}")
+
     # Wait for topics to be available before creating consumer
     logger.info(f"Waiting for topics: {settings.kafka_consumer_topics}")
     wait_for_topics(settings.kafka_consumer_topics)
@@ -61,6 +71,8 @@ def main():
             for topic, batch in batches.items():
                 if not batch:
                     continue
+                STORAGE_BATCHES.inc()
+                STORAGE_RECORDS.inc(len(batch))
 
                 ch_client.insert_batch(topic, batch)
                 logger.info(f"Inserted {len(batch)} records into {topic}")
@@ -69,6 +81,7 @@ def main():
             time.sleep(settings.storage_poll_interval_seconds)
 
         except Exception as e:
+            STORAGE_ERRORS.inc()
             logger.error(f"Processing error: {str(e)}")
             time.sleep(10)
 
