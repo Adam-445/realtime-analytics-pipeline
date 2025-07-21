@@ -19,12 +19,15 @@ services:
     restart: unless-stopped
 
   kafka1:
-    image: confluentinc/cp-kafka:7.8.0
+    build:
+      context: ./kafka
+      dockerfile: Dockerfile
     hostname: kafka1
     ports:
       - "9092:9092"
       - "29092:29092"
       - "9999:9999"
+      - "7071:7071"
     environment:
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:19092,EXTERNAL://${DOCKER_HOST_IP:-127.0.0.1}:9092,DOCKER://host.docker.internal:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,DOCKER:PLAINTEXT
@@ -36,11 +39,14 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_JMX_PORT: 9999
-      KAFKA_JMX_HOSTNAME: ${DOCKER_HOST_IP:-127.0.0.1}
+      KAFKA_JMX_HOSTNAME: kafka1
       KAFKA_AUTHORIZER_CLASS_NAME: kafka.security.authorizer.AclAuthorizer
       KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "true"
+      KAFKA_OPTS: "-javaagent:/opt/kafka/jmx_prometheus_javaagent.jar=7071:/opt/kafka/kafka-jmx-exporter.yml"
     depends_on:
       - zoo1
+    volumes:
+      - ../monitoring/jmx/kafka-jmx-exporter.yml:/opt/kafka/kafka-jmx-exporter.yml:ro
     healthcheck:
       test: [ "CMD", "bash", "-c", "echo > /dev/tcp/localhost/9092" ]
       interval: 10s
