@@ -11,3 +11,4 @@ opentelemetry-exporter-otlp-proto-grpc==1.35.0
 opentelemetry-instrumentation-confluent-kafka==0.56b0
 opentelemetry-instrumentation-fastapi==0.56b0
 opentelemetry-sdk==1.35.0
+opentelemetry-instrumentation-logging==0.56b0
