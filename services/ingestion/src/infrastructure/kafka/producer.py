@@ -1,6 +1,8 @@
 import logging
 
 from confluent_kafka import KafkaException, Producer
+from opentelemetry.instrumentation.confluent_kafka import ConfluentKafkaInstrumentor
+from opentelemetry.propagate import inject
 from src.core.config import settings
 from src.schemas.analytics_event import AnalyticsEvent
 
@@ -9,6 +11,7 @@ logger = logging.getLogger("kafka.producer")
 
 class EventProducer:
     def __init__(self):
+        ConfluentKafkaInstrumentor().instrument()
         self.producer = Producer(
             {
                 "bootstrap.servers": settings.kafka_bootstrap_servers,
@@ -30,10 +33,15 @@ class EventProducer:
 
     async def send_event(self, event: AnalyticsEvent):
         try:
+            # Inject tracing context into headers
+            headers: dict[str, str] = {}
+            inject(headers)
+
             self.producer.produce(
                 topic=self.topic,
                 key=event.user.id.encode("utf-8"),
                 value=event.model_dump_json(by_alias=True).encode("utf-8"),
+                headers=headers,
                 callback=self._delivery_report,
             )
             # Non-bolcking poll to handle callbacks

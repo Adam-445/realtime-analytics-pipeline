@@ -26,8 +26,8 @@ services:
     ports:
       - "9092:9092"
       - "29092:29092"
-      - "9999:9999"
       - "7071:7071"
+      - "9999:9999"
     environment:
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:19092,EXTERNAL://${DOCKER_HOST_IP:-127.0.0.1}:9092,DOCKER://host.docker.internal:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,DOCKER:PLAINTEXT
@@ -42,7 +42,8 @@ services:
       KAFKA_JMX_HOSTNAME: kafka1
       KAFKA_AUTHORIZER_CLASS_NAME: kafka.security.authorizer.AclAuthorizer
       KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "true"
-      KAFKA_OPTS: "-javaagent:/opt/kafka/jmx_prometheus_javaagent.jar=7071:/opt/kafka/kafka-jmx-exporter.yml"
+      JMX_PROMETHEUS_PORT: 7071
+      EXTRA_ARGS: "-javaagent:/opt/kafka/jmx_prometheus_javaagent.jar=7071:/opt/kafka/kafka-jmx-exporter.yml"
     depends_on:
       - zoo1
     volumes:
