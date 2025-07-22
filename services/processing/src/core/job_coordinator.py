@@ -1,10 +1,9 @@
-import logging
-
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import StreamTableEnvironment
 from src.core.config import settings
+from src.core.logger import get_logger
 
-logger = logging.getLogger("job_coordinator")
+logger = get_logger("job_coordinator")
 
 
 class JobCoordinator:

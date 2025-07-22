@@ -198,6 +198,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8001:8001"
+    environment:
+      OTEL_SERVICE_NAME: "storage"
     volumes:
       - ../../services/storage/src:/app/src:ro
     depends_on:
