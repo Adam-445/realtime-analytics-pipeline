@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import socket
+import traceback
 from datetime import datetime, timezone
 
 from opentelemetry import trace
@@ -76,19 +77,8 @@ class CustomJsonFormatter(JsonFormatter):
         return {
             "type": ex_type.__name__,
             "message": str(ex_value),
-            "stack": self.format_traceback(ex_traceback),
+            "stack": traceback.format_tb(ex_traceback),
         }
-
-    def format_traceback(self, traceback):
-        """Format traceback as list of frames"""
-        return [
-            {
-                "file": frame.f_code.co_filename,
-                "line": frame.f_lineno,
-                "function": frame.f_code.co_name,
-            }
-            for frame in traceback
-        ]
 
     def add_otel_context(self, record_dict):
         """Add OpenTelemetry context efficiently"""

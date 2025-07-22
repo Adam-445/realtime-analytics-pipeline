@@ -1,9 +1,9 @@
-import logging
 import time
 
 from fastapi import APIRouter, Depends, status
 from prometheus_client import Counter, Histogram
 from src.api.v1.dependencies import get_kafka_producer
+from src.core.logger import get_logger
 from src.infrastructure.kafka.producer import EventProducer
 from src.schemas.analytics_event import AnalyticsEvent
 
@@ -23,7 +23,7 @@ router = APIRouter()
 async def track_event(
     event: AnalyticsEvent, producer: EventProducer = Depends(get_kafka_producer)
 ):
-    logger = logging.getLogger("api.track")
+    logger = get_logger("api.track")
     start_time = time.time()
 
     logger.info(
@@ -39,11 +39,10 @@ async def track_event(
     INGESTION_REQUESTS.inc()
     try:
         await producer.send_event(event)
-        elapsed = time.time() - start_time
         logger.info(
             "Event processed successfully",
             extra={
-                "processing_time": elapsed,
+                "processing_time": time.time() - start_time,
                 "event_type": event.event.type,
                 "event_id": str(event.event.id),
             },
@@ -52,14 +51,12 @@ async def track_event(
 
     except Exception as e:
         KAFKA_PRODUCER_ERRORS.inc()
-        elapsed = time.time() - start_time
         logger.error(
             "Failed to process event",
             extra={
+                "error_type": type(e).__name__,
                 "error": str(e),
-                "event_type": event.event.type,
-                "event_id": str(event.event.id),
-                "processing_time": elapsed,
+                "event": event.model_dump(),
             },
         )
         raise

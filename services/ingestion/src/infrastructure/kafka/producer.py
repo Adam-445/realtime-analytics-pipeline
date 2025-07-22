@@ -1,12 +1,11 @@
-import logging
-
 from confluent_kafka import KafkaException, Producer
 from opentelemetry.instrumentation.confluent_kafka import ConfluentKafkaInstrumentor
 from opentelemetry.propagate import inject
 from src.core.config import settings
+from src.core.logger import get_logger
 from src.schemas.analytics_event import AnalyticsEvent
 
-logger = logging.getLogger("kafka.producer")
+logger = get_logger("kafka.producer")
 
 
 class EventProducer:
@@ -51,7 +50,14 @@ class EventProducer:
             self.flush()
             raise
         except KafkaException as e:
-            logger.error(f"Kafka error: {e}")
+            logger.error(
+                "Kafka produce error",
+                extra={
+                    "event_id": str(event.event.id),
+                    "error_code": e.args[0].code(),
+                    "retriable": e.retriable(),
+                },
+            )
             raise
         except Exception as e:
             logger.exception(f"Unexpected producer error: {e}")

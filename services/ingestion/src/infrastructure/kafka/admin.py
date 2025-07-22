@@ -1,12 +1,14 @@
-import logging
-
 from confluent_kafka.admin import AdminClient, NewTopic
 from src.core.config import settings
+from src.core.logger import get_logger
 
-logger = logging.getLogger("kafka.admin")
+logger = get_logger("kafka.admin")
 
 
 def create_topics():
+    logger.info(
+        "Creating Kafka topics", extra={"topics": settings.kafka_consumer_topics}
+    )
     config = {"bootstrap.servers": settings.kafka_bootstrap_servers}
     admin = AdminClient(config)
 
@@ -21,7 +23,9 @@ def create_topics():
     for topic, future in result.items():
         try:
             future.result()
-            logger.info(f"Topic {topic} created")
+            logger.info("Topic created", extra={"topic": topic})
         except Exception as e:
             if e.args[0].code() != 36:  # TopicExistsError
-                logger.error(f"Failed to create topic {topic}: {e}")
+                logger.error(
+                    "Failed to create topic", extra={"topic": topic, "error": e}
+                )
