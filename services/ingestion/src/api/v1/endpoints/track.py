@@ -1,3 +1,4 @@
+import logging
 import time
 
 from fastapi import APIRouter, Depends, status
@@ -22,13 +23,46 @@ router = APIRouter()
 async def track_event(
     event: AnalyticsEvent, producer: EventProducer = Depends(get_kafka_producer)
 ):
+    logger = logging.getLogger("api.track")
     start_time = time.time()
+
+    logger.info(
+        "Received analytics event",
+        extra={
+            "event_id": str(event.event.id),
+            "event_type": event.event.type,
+            "user_id": event.user.id,
+            "session_id": event.context.session_id,
+        },
+    )
+
     INGESTION_REQUESTS.inc()
     try:
         await producer.send_event(event)
+        elapsed = time.time() - start_time
+        logger.info(
+            "Event processed successfully",
+            extra={
+                "processing_time": elapsed,
+                "event_type": event.event.type,
+                "event_id": str(event.event.id),
+            },
+        )
         return {"status": "accepted"}
-    except Exception:
+
+    except Exception as e:
         KAFKA_PRODUCER_ERRORS.inc()
+        elapsed = time.time() - start_time
+        logger.error(
+            "Failed to process event",
+            extra={
+                "error": str(e),
+                "event_type": event.event.type,
+                "event_id": str(event.event.id),
+                "processing_time": elapsed,
+            },
+        )
         raise
+
     finally:
         INGESTION_LATENCY.observe(time.time() - start_time)

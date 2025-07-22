@@ -13,6 +13,7 @@ class Settings(BaseSettings):
         "performance_metrics",
     ]
     otel_service_name: str = "ingestion"
+    app_environment: str = "production"
 
     # Logging
     app_log_level: str = "INFO"
