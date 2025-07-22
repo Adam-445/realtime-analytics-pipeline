@@ -1,73 +1,124 @@
+import json
 import logging
 import os
 import socket
 from datetime import datetime, timezone
 
 from opentelemetry import trace
+from opentelemetry.propagate import inject
 from pythonjsonlogger.json import JsonFormatter
 from src.core.config import settings
 
 
+class SensitiveDataFilter:
+    """Filter sensitive data from logs"""
+
+    SENSITIVE_FIELDS = {
+        "password",
+        "token",
+        "api_key",
+        "secret",
+        "credential",
+        "authorization",
+        "cookie",
+        "session",
+        "key",
+    }
+
+    @staticmethod
+    def filter(data: dict) -> dict:
+        """Replace sensitive values with '[REDACTED]'"""
+        filtered = data.copy()
+        for key, value in data.items():
+            key_lower = key.lower()
+            if any(sens in key_lower for sens in SensitiveDataFilter.SENSITIVE_FIELDS):
+                filtered[key] = "[REDACTED]"
+            elif isinstance(value, dict):
+                filtered[key] = SensitiveDataFilter.filter(value)
+        return filtered
+
+
 class CustomJsonFormatter(JsonFormatter):
+    """Production-grade JSON formatter with OTel integration"""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.hostname = socket.gethostname()
         self.pid = os.getpid()
+        self.sensitive_filter = SensitiveDataFilter()
+
+        # Cache service name
+        self.service_name = settings.otel_service_name
+        self.environment = settings.app_environment
 
     def format(self, record):
-        # Ensure the record has a valid timestamp in ISO 8601 format
-        if not hasattr(record, "created"):
-            record.created = datetime.now(timezone.utc).timestamp()
+        record_dict = record.__dict__.copy()
 
-        # Format timestamp in ISO 8601
-        iso_time = datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat()
+        # Add standard fields
+        record_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
+        record_dict["service"] = self.service_name
+        record_dict["hostname"] = self.hostname
+        record_dict["pid"] = self.pid
+        record_dict["environment"] = self.environment
 
-        # Add exception details if present
+        self.add_otel_context(record_dict)
+
         if record.exc_info:
-            exc_text = self.formatException(record.exc_info)
-            setattr(record, "_formatted_exc", exc_text)
+            record_dict["exception"] = self.format_exception(record.exc_info)
 
-        setattr(record, "_iso_timestamp", iso_time)
-        return super().format(record)
+        record_dict = self.sensitive_filter.filter(record_dict)
 
-    def add_fields(self, log_record, record, message_dict):
-        super().add_fields(log_record, record, message_dict)
-        log_record["timestamp"] = getattr(record, "_iso_timestamp")
-        log_record["service"] = settings.otel_service_name
-        log_record["hostname"] = self.hostname
-        log_record["pid"] = self.pid
+        return json.dumps(record_dict)
 
-        # Add environment info
-        log_record["environment"] = settings.app_environment
+    def format_exception(self, exc_info):
+        """Format exception with stack trace"""
+        ex_type, ex_value, ex_traceback = exc_info
+        return {
+            "type": ex_type.__name__,
+            "message": str(ex_value),
+            "stack": self.format_traceback(ex_traceback),
+        }
 
-        # Add exception info if present
-        if record.exc_info and hasattr(record, "_formatted_exc"):
-            log_record["exception"] = getattr(record, "_formatted_exc")
+    def format_traceback(self, traceback):
+        """Format traceback as list of frames"""
+        return [
+            {
+                "file": frame.f_code.co_filename,
+                "line": frame.f_lineno,
+                "function": frame.f_code.co_name,
+            }
+            for frame in traceback
+        ]
 
-        # Add Opentelemetry context if available
+    def add_otel_context(self, record_dict):
+        """Add OpenTelemetry context efficiently"""
         span = trace.get_current_span()
-        if span and span.get_span_context().is_valid:
-            ctx = span.get_span_context()
-            log_record["trace_id"] = format(ctx.trace_id, "032x")
-            log_record["span_id"] = format(ctx.span_id, "016x")
+        if not span or not span.get_span_context().is_valid:
+            return
+
+        ctx = span.get_span_context()
+        record_dict["trace_id"] = format(ctx.trace_id, "032x")
+        record_dict["span_id"] = format(ctx.span_id, "016x")
+        record_dict["trace_flags"] = format(ctx.trace_flags, "02d")
+
+        # For W3C trace context propagation
+        carrier = {}
+        inject(carrier)
+        record_dict["traceparent"] = carrier.get("traceparent", "")
 
 
 def configure_logging():
-    format_string = (
-        "%(message)s %(levelname)s %(name)s " "%(processName)s %(funcName)s %(lineno)d"
-    )
+    """Configure structured logging for the service"""
+    formatter = CustomJsonFormatter()
 
-    formatter = CustomJsonFormatter(format_string)
-
-    handler = logging.StreamHandler()
-    handler.setFormatter(formatter)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
 
     logger = logging.getLogger()
+    logger.handlers = [console_handler]
 
-    logger.handlers = [handler]
-
-    logger.setLevel(getattr(logging, settings.app_log_level.upper()))
-
-    logging.getLogger("asyncio").setLevel(logging.INFO)
+    # Set log level from config
+    log_level = getattr(logging, settings.app_log_level.upper(), logging.INFO)
+    logger.setLevel(log_level)
 
     return logger
