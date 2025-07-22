@@ -14,25 +14,13 @@ from src.core.config import settings
 class SensitiveDataFilter:
     """Filter sensitive data from logs"""
 
-    SENSITIVE_FIELDS = {
-        "password",
-        "token",
-        "api_key",
-        "secret",
-        "credential",
-        "authorization",
-        "cookie",
-        "session",
-        "key",
-    }
-
     @staticmethod
     def filter(data: dict) -> dict:
         """Replace sensitive values with '[REDACTED]'"""
         filtered = data.copy()
         for key, value in data.items():
             key_lower = key.lower()
-            if any(sens in key_lower for sens in SensitiveDataFilter.SENSITIVE_FIELDS):
+            if any(sens in key_lower for sens in settings.app_log_redaction_patterns):
                 filtered[key] = "[REDACTED]"
             elif isinstance(value, dict):
                 filtered[key] = SensitiveDataFilter.filter(value)

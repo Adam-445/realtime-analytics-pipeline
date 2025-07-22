@@ -17,6 +17,15 @@ class Settings(BaseSettings):
 
     # Logging
     app_log_level: str = "INFO"
+    app_log_redaction_patterns: list[str] = [
+        "password",
+        "token",
+        "secret",
+        "key",
+        "authorization",
+        "cookie",
+        "session",
+    ]
 
 
 settings = Settings()
