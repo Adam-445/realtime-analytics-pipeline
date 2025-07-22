@@ -12,6 +12,8 @@ class Settings(BaseSettings):
         "session_metrics",
         "performance_metrics",
     ]
+    otel_service_name: str = "ingestion"
+
     # Logging
     app_log_level: str = "INFO"
 
