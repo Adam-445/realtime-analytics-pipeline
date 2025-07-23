@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     processing_metrics_window_size_seconds: int = 60
     processing_performance_window_size_seconds: int = 300
     processing_session_gap_seconds: int = 1800
-    processing_prometheus_port: int = 9250
 
     # Event filtering
     processing_allowed_event_types: list[str] = [

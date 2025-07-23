@@ -27,16 +27,6 @@ class JobCoordinator:
             "execution.checkpointing.interval", settings.flink_checkpoint_interval_ms
         )
 
-        # Prometheus metrics reporter
-        flink_conf.set_string("metrics.reporters", "prom")
-        flink_conf.set_string(
-            "metrics.reporter.prom.class",
-            "org.apache.flink.metrics.prometheus.PrometheusReporter",
-        )
-        flink_conf.set_integer(
-            "metrics.reporter.prom.port", settings.processing_prometheus_port
-        )
-
         return flink_conf
 
     def _configure_table_settings(self):
