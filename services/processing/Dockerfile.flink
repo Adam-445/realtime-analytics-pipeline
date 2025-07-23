@@ -13,9 +13,4 @@ RUN curl -fSL \
     -o /opt/flink/lib/flink-json-2.0.0.jar \
     https://repo1.maven.org/maven2/org/apache/flink/flink-json/2.0.0/flink-json-2.0.0.jar
 
-# Prometheus metrics reporter
-# RUN curl -fSL \
-#     -o /opt/flink/lib/flink-metrics-prometheus-2.0.0.jar \
-#     https://repo.maven.apache.org/maven2/org/apache/flink/flink-metrics-prometheus/2.0.0/flink-metrics-prometheus-2.0.0.jar
-
 USER flink
