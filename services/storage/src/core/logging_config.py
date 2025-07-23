@@ -57,7 +57,7 @@ class CustomJsonFormatter(JsonFormatter):
 
         record_dict = self.sensitive_filter.filter(record_dict)
 
-        return json.dumps(record_dict)
+        return json.dumps(record_dict, default=str)
 
     def format_exception(self, exc_info):
         """Format exception with stack trace"""
