@@ -5,8 +5,6 @@ import socket
 import traceback
 from datetime import datetime, timezone
 
-from opentelemetry import trace
-from opentelemetry.propagate import inject
 from pythonjsonlogger.json import JsonFormatter
 from src.core.config import settings
 
@@ -50,8 +48,6 @@ class CustomJsonFormatter(JsonFormatter):
         record_dict["pid"] = self.pid
         record_dict["environment"] = self.environment
 
-        self.add_otel_context(record_dict)
-
         if record.exc_info:
             record_dict["exception"] = self.format_exception(record.exc_info)
 
@@ -67,22 +63,6 @@ class CustomJsonFormatter(JsonFormatter):
             "message": str(ex_value),
             "stack": traceback.format_tb(ex_traceback),
         }
-
-    def add_otel_context(self, record_dict):
-        """Add OpenTelemetry context efficiently"""
-        span = trace.get_current_span()
-        if not span or not span.get_span_context().is_valid:
-            return
-
-        ctx = span.get_span_context()
-        record_dict["trace_id"] = format(ctx.trace_id, "032x")
-        record_dict["span_id"] = format(ctx.span_id, "016x")
-        record_dict["trace_flags"] = format(ctx.trace_flags, "02d")
-
-        # For W3C trace context propagation
-        carrier = {}
-        inject(carrier)
-        record_dict["traceparent"] = carrier.get("traceparent", "")
 
 
 def configure_logging():

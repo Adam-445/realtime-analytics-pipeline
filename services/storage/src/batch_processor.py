@@ -6,7 +6,6 @@ from src.clickhouse_client import ClickHouseClient
 from src.core.config import settings
 from src.core.logger import get_logger
 from src.core.logging_config import configure_logging
-from src.core.tracing import configure_tracing
 from src.kafka_batch_consumer import KafkaBatchConsumer
 
 STORAGE_BATCHES = Counter("storage_batches_total", "Total batches processed")
@@ -68,7 +67,6 @@ def wait_for_topics(topics: list[str], max_retries: int = 30, initial_delay: int
 
 def main():
     configure_logging()
-    configure_tracing()
     logger.info("Starting Clickhouse storage service")
 
     metrics_port = 8001

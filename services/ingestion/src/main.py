@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from prometheus_fastapi_instrumentator import Instrumentator
 from src.api.v1.dependencies import get_kafka_producer
 from src.api.v1.endpoints import track
@@ -23,6 +22,5 @@ app = FastAPI(
 )
 
 Instrumentator().instrument(app).expose(app)
-FastAPIInstrumentor.instrument_app(app)
 
 app.include_router(track.router, prefix="/v1/analytics")

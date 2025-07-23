@@ -2,14 +2,11 @@ import json
 from datetime import datetime
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
-from opentelemetry.instrumentation.confluent_kafka import ConfluentKafkaInstrumentor
 from src.core.config import settings
 
 
 class KafkaBatchConsumer:
     def __init__(self, topics: list[str]):
-        ConfluentKafkaInstrumentor().instrument()
-
         self.consumer = Consumer(
             {
                 "bootstrap.servers": settings.kafka_bootstrap_servers,

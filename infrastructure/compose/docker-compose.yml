@@ -153,18 +153,6 @@ services:
     networks:
       - analytics_net
 
-  jaeger:
-    image: jaegertracing/jaeger:2.8.0
-    hostname: jaeger
-    ports:
-      - "16686:16686" # UI
-      - "4317:4317" # OTLP gRPC
-      - "4318:4318" # OTLP HTTP
-    networks:
-      - analytics_net
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
-
   # Services
   ingestion:
     build:
@@ -174,8 +162,6 @@ services:
       - "8000:8000"
     depends_on:
       - kafka1
-    environment:
-      OTEL_SERVICE_NAME: "ingestion"
     networks:
       - analytics_net
     restart: on-failure
@@ -186,7 +172,6 @@ services:
       dockerfile: Dockerfile.processing
     environment:
       FLINK_PROPERTIES: "jobmanager.rpc.address: jobmanager"
-      OTEL_SERVICE_NAME: "processing"
     depends_on:
       - kafka1
       - jobmanager
@@ -202,8 +187,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8001:8001"
-    environment:
-      OTEL_SERVICE_NAME: "storage"
     volumes:
       - ../../services/storage/src:/app/src:ro
     depends_on:
