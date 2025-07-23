@@ -1,10 +1,9 @@
-import logging
-
 from confluent_kafka import KafkaException, Producer
 from src.core.config import settings
+from src.core.logger import get_logger
 from src.schemas.analytics_event import AnalyticsEvent
 
-logger = logging.getLogger("kafka.producer")
+logger = get_logger("kafka.producer")
 
 
 class EventProducer:
@@ -30,6 +29,8 @@ class EventProducer:
 
     async def send_event(self, event: AnalyticsEvent):
         try:
+            # Inject tracing context into headers
+
             self.producer.produce(
                 topic=self.topic,
                 key=event.user.id.encode("utf-8"),
@@ -43,7 +44,14 @@ class EventProducer:
             self.flush()
             raise
         except KafkaException as e:
-            logger.error(f"Kafka error: {e}")
+            logger.error(
+                "Kafka produce error",
+                extra={
+                    "event_id": str(event.event.id),
+                    "error_code": e.args[0].code(),
+                    "retriable": e.retriable(),
+                },
+            )
             raise
         except Exception as e:
             logger.exception(f"Unexpected producer error: {e}")

@@ -30,8 +30,18 @@ class Settings(BaseSettings):
 
     # Logging
     app_log_level: str = "INFO"
+    app_log_redaction_patterns: list[str] = [
+        "password",
+        "token",
+        "secret",
+        "key",
+        "authorization",
+        "cookie",
+        "session",
+    ]
 
     app_environment: str = "production"
+    otel_service_name: str = "processing"
 
 
 settings = Settings()

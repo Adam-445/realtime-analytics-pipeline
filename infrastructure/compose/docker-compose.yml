@@ -10,7 +10,7 @@ services:
       ZOOKEEPER_SERVER_ID: 1
       ZOOKEEPER_SERVERS: zoo1:2888:3888
     healthcheck:
-      test: ["CMD", "zcsh", "echo ruok | nc localhost 2181 | grep imok"]
+      test: [ "CMD", "zcsh", "echo ruok | nc localhost 2181 | grep imok" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -19,11 +19,14 @@ services:
     restart: unless-stopped
 
   kafka1:
-    image: confluentinc/cp-kafka:7.8.0
+    build:
+      context: ./kafka
+      dockerfile: Dockerfile
     hostname: kafka1
     ports:
       - "9092:9092"
       - "29092:29092"
+      - "7071:7071"
       - "9999:9999"
     environment:
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:19092,EXTERNAL://${DOCKER_HOST_IP:-127.0.0.1}:9092,DOCKER://host.docker.internal:29092
@@ -36,17 +39,17 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_JMX_PORT: 9999
-      KAFKA_JMX_HOSTNAME: ${DOCKER_HOST_IP:-127.0.0.1}
+      KAFKA_JMX_HOSTNAME: kafka1
       KAFKA_AUTHORIZER_CLASS_NAME: kafka.security.authorizer.AclAuthorizer
       KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "true"
+      JMX_PROMETHEUS_PORT: 7071
+      EXTRA_ARGS: "-javaagent:/opt/kafka/jmx_prometheus_javaagent.jar=7071:/opt/kafka/kafka-jmx-exporter.yml"
     depends_on:
       - zoo1
+    volumes:
+      - ../monitoring/jmx/kafka-jmx-exporter.yml:/opt/kafka/kafka-jmx-exporter.yml:ro
     healthcheck:
-      test:
-        [
-          "CMD", "bash", "-c",
-          "echo > /dev/tcp/localhost/9092"
-        ]
+      test: [ "CMD", "bash", "-c", "echo > /dev/tcp/localhost/9092" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -62,14 +65,18 @@ services:
     hostname: jobmanager
     ports:
       - "8081:8081"
+      - "9249:9249"
     environment:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: jobmanager
         jobmanager.memory.process.size: 1600m
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
+
     command: jobmanager
     networks:
       - analytics_net
-  
+
   taskmanager1:
     build:
       context: ../../services/processing
@@ -80,6 +87,8 @@ services:
         jobmanager.rpc.address: jobmanager
         taskmanager.memory.process.size: 1728m
         taskmanager.numberOfTaskSlots: 2
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
     depends_on:
       - jobmanager
     command: taskmanager
@@ -96,6 +105,8 @@ services:
         jobmanager.rpc.address: jobmanager
         taskmanager.memory.process.size: 1728m
         taskmanager.numberOfTaskSlots: 2
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
     depends_on:
       - jobmanager
     command: taskmanager
@@ -106,14 +117,39 @@ services:
     image: clickhouse/clickhouse-server:25.6
     hostname: clickhouse
     ports:
-      - "8123:8123"  # HTTP API
-      - "9000:9000"  # Native protocol
+      - "8123:8123" # HTTP API
+      - "9000:9000" # Native protocol
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     environment:
       CLICKHOUSE_DB: analytics
       CLICKHOUSE_USER: admin
       CLICKHOUSE_PASSWORD: admin
+    networks:
+      - analytics_net
+
+  # Monitoring
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - analytics_net
+  grafana:
+    image: grafana/grafana:12.0.2
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
     networks:
       - analytics_net
 
@@ -143,23 +179,28 @@ services:
     networks:
       - analytics_net
     restart: on-failure
-    command: ["bash", "/app/bin/entrypoint.sh"]
-  
+    command: [ "bash", "/app/bin/entrypoint.sh" ]
+
   storage:
     build:
       context: ../../services/storage
       dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - ../../services/storage/src:/app/src:ro
     depends_on:
       - clickhouse
       - kafka1
-    volumes:
-      - ../../services/storage/src:/app/src:ro
     networks:
       - analytics_net
     restart: unless-stopped
-      
+
 volumes:
   clickhouse_data:
+  prometheus_data:
+  grafana_data:
+
 
 networks:
   analytics_net:

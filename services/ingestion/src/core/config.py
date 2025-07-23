@@ -12,8 +12,20 @@ class Settings(BaseSettings):
         "session_metrics",
         "performance_metrics",
     ]
+    otel_service_name: str = "ingestion"
+    app_environment: str = "production"
+
     # Logging
     app_log_level: str = "INFO"
+    app_log_redaction_patterns: list[str] = [
+        "password",
+        "token",
+        "secret",
+        "key",
+        "authorization",
+        "cookie",
+        "session",
+    ]
 
 
 settings = Settings()
