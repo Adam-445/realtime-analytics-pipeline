@@ -3,3 +3,5 @@ pytest-asyncio==1.0.0
 requests==2.32.4
 confluent-kafka==2.10.0
 clickhouse-driver==0.2.9
+pydantic-settings==2.8.0
+uuid6==2025.0.0
