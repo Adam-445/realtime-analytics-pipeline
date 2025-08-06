@@ -1,0 +1,19 @@
+services:
+  unit-test-runner:
+    build:
+      context: ../../tests
+      dockerfile: Dockerfile
+    volumes:
+      - ../../services:/app/services:ro
+      - ../../tests:/tests:ro
+    environment:
+      - PYTHONPATH=/tests:/app
+    working_dir: /tests
+    command: ["python", "-m", "pytest", "unit/", "-v", "--tb=short"]
+    networks:
+      - analytics_net_unit
+
+networks:
+  analytics_net_unit:
+    driver: bridge
+    name: analytics_net_unit
