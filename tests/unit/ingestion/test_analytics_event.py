@@ -32,3 +32,41 @@ def test_analytics_event_valid_creation():
     assert event.timestamp > 0
     assert isinstance(event.timestamp, int)
     assert event.properties == {}
+
+
+def test_analytics_event_with_optional_fields():
+    """Test AnalyticsEvent with all optional fields populated."""
+    from services.ingestion.src.schemas.analytics_event import AnalyticsEvent
+
+    event_data = {
+        "event": {"type": "click"},
+        "user": {"id": "user456"},
+        "device": {
+            "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)",
+            "screen_width": 375,
+            "screen_height": 812,
+        },
+        "context": {
+            "url": "https://example.com/product/123/",
+            "referrer": "https://google.com/",
+            "ip_address": "192.168.1.1",
+            "session_id": "session456",
+        },
+        "properties": {
+            "button_text": "Add to Cart",
+            "product_id": "prod123",
+            "price": 29.99,
+            "category_id": 5,
+        },
+        "metrics": {"load_time": 1200, "interaction_time": 500},
+    }
+
+    event = AnalyticsEvent(**event_data)
+
+    assert str(event.context.referrer) == "https://google.com/"
+    assert str(event.context.ip_address) == "192.168.1.1"
+    assert event.properties["button_text"] == "Add to Cart"
+    assert event.properties["price"] == 29.99
+    assert event.properties["category_id"] == 5
+    assert event.metrics.load_time == 1200
+    assert event.metrics.interaction_time == 500
