@@ -194,3 +194,31 @@ def test_context_info_with_ipv6():
     )
 
     assert str(context.ip_address) == "2001:db8::1"
+
+
+def test_properties_field_flexibility():
+    """Test that properties field accepts various data types."""
+    from services.ingestion.src.schemas.analytics_event import AnalyticsEvent
+
+    event_data = {
+        "event": {"type": "purchase"},
+        "user": {"id": "user123"},
+        "device": {
+            "user_agent": "Mozilla/5.0",
+            "screen_width": 1920,
+            "screen_height": 1080,
+        },
+        "context": {"url": "https://example.com", "session_id": "session123"},
+        "properties": {"string_value": "test", "int_value": 42, "float_value": 3.14},
+        "metrics": {},
+    }
+
+    event = AnalyticsEvent(**event_data)
+    assert event.properties["string_value"] == "test"
+    assert event.properties["int_value"] == 42
+    assert event.properties["float_value"] == 3.14
+
+    # Test that the properties dict can be empty
+    event_data["properties"] = {}
+    event = AnalyticsEvent(**event_data)
+    assert event.properties == {}
