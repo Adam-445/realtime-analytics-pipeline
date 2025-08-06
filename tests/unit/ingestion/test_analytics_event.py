@@ -70,3 +70,30 @@ def test_analytics_event_with_optional_fields():
     assert event.properties["category_id"] == 5
     assert event.metrics.load_time == 1200
     assert event.metrics.interaction_time == 500
+
+
+def test_analytics_event_invalid_url():
+    """Test that invalid URLs are rejected."""
+    from services.ingestion.src.schemas.analytics_event import AnalyticsEvent
+
+    event_data = {
+        "event": {"type": "page_view"},
+        "user": {"id": "user123"},
+        "device": {
+            "user_agent": "Mozilla/5.0",
+            "screen_width": 1920,
+            "screen_height": 1080,
+        },
+        "context": {
+            "url": "not-a-valid-url",  # Invalid URL
+            "session_id": "session123",
+        },
+        "metrics": {},
+    }
+
+    with pytest.raises(ValidationError) as exc_info:
+        AnalyticsEvent(**event_data)
+
+    # Check that URL validation failed
+    errors = exc_info.value.errors()
+    assert any("url" in str(error).lower() for error in errors)
