@@ -97,3 +97,51 @@ def test_analytics_event_invalid_url():
     # Check that URL validation failed
     errors = exc_info.value.errors()
     assert any("url" in str(error).lower() for error in errors)
+
+
+def test_analytics_event_missing_required_fields():
+    """Test that missing required fields are rejected."""
+    from services.ingestion.src.schemas.analytics_event import AnalyticsEvent
+
+    # Missing event.type
+    with pytest.raises(ValidationError) as exc_info:
+        AnalyticsEvent(
+            **{
+                "event": {},  # Missing type
+                "user": {"id": "user123"},
+                "device": {
+                    "user_agent": "Mozilla/5.0",
+                    "screen_width": 1920,
+                    "screen_height": 1080,
+                },
+                "context": {"url": "https://example.com/", "session_id": "session123"},
+                "metrics": {},
+            }
+        )
+
+    errors = exc_info.value.errors()
+    assert any(error["loc"] == ("event", "type") for error in errors)
+
+
+def test_analytics_event_timestamp_generation():
+    """Test that timestamp is automatically generated with reasonable value."""
+    from services.ingestion.src.schemas.analytics_event import AnalyticsEvent
+
+    # Mock time to test timestamp generation
+    with patch("time.time", return_value=1609459200.123):  # 2021-01-01 00:00:00.123 UTC
+        event_data = {
+            "event": {"type": "page_view"},
+            "user": {"id": "user123"},
+            "device": {
+                "user_agent": "Mozilla/5.0",
+                "screen_width": 1920,
+                "screen_height": 1080,
+            },
+            "context": {"url": "https://example.com", "session_id": "session123"},
+            "metrics": {},
+        }
+
+        event = AnalyticsEvent(**event_data)
+
+        # Should be 1609459200123 (epoch seconds * 1000 + milliseconds)
+        assert event.timestamp == 1609459200123
