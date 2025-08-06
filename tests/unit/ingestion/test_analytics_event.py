@@ -145,3 +145,52 @@ def test_analytics_event_timestamp_generation():
 
         # Should be 1609459200123 (epoch seconds * 1000 + milliseconds)
         assert event.timestamp == 1609459200123
+
+
+def test_event_info_uuid_generation():
+    """Test that EventInfo generates unique UUID v7 IDs."""
+    from services.ingestion.src.schemas.analytics_event import EventInfo
+
+    event1 = EventInfo(type="click")
+    event2 = EventInfo(type="view")
+
+    # Should be different UUIDs
+    assert event1.id != event2.id
+    assert isinstance(event1.id, UUID)
+    assert isinstance(event2.id, UUID)
+
+    # UUID v7 should have version 7
+    assert event1.id.version == 7
+    assert event2.id.version == 7
+
+
+def test_device_info_validation():
+    """Test DeviceInfo field validation."""
+    from services.ingestion.src.schemas.analytics_event import DeviceInfo
+
+    # Valid device info
+    device = DeviceInfo(user_agent="Mozilla/5.0", screen_width=1920, screen_height=1080)
+    assert device.screen_width == 1920
+    assert device.screen_height == 1080
+
+    # Test that missing required fields are caught
+    with pytest.raises(ValidationError):
+        DeviceInfo(
+            screen_width=1920,
+            screen_height=1080,
+            user_agent=None,  # Invalid user_agent - should raise ValidationError
+        )
+
+
+def test_context_info_with_ipv6():
+    """Test ContextInfo accepts IPv6 addresses."""
+    from services.ingestion.src.schemas.analytics_event import ContextInfo
+
+    context = ContextInfo(
+        url="https://example.com",
+        ip_address="2001:db8::1",
+        session_id="session123",
+        referrer=None,
+    )
+
+    assert str(context.ip_address) == "2001:db8::1"
