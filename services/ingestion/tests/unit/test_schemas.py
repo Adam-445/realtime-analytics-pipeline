@@ -150,3 +150,161 @@ class TestDeviceInfo:
                 screen_width="not_a_number",
                 screen_height=1080,
             )
+
+
+class TestEventMetrics:
+    """Test cases for EventMetrics schema."""
+
+    def test_event_metrics_valid(self):
+        """Test valid EventMetrics creation."""
+        metrics = EventMetrics(load_time=250, interaction_time=1500)
+
+        assert metrics.load_time == 250
+        assert metrics.interaction_time == 1500
+
+    def test_event_metrics_optional_fields(self):
+        """Test EventMetrics with optional fields."""
+        metrics = EventMetrics()
+
+        assert metrics.load_time is None
+        assert metrics.interaction_time is None
+
+    def test_event_metrics_partial_fields(self):
+        """Test EventMetrics with some fields."""
+        metrics = EventMetrics(load_time=300)
+
+        assert metrics.load_time == 300
+        assert metrics.interaction_time is None
+
+
+class TestAnalyticsEvent:
+    """Test cases for AnalyticsEvent schema."""
+
+    def test_analytics_event_valid(self):
+        """Test valid AnalyticsEvent creation."""
+        event_data = {
+            "event": {"type": "page_view"},
+            "user": {"id": "user123"},
+            "device": {
+                "user_agent": "Mozilla/5.0",
+                "screen_width": 1920,
+                "screen_height": 1080,
+            },
+            "context": {"url": "https://example.com/page", "session_id": "session123"},
+            "metrics": {"load_time": 250},
+        }
+
+        event = AnalyticsEvent(**event_data)
+
+        assert event.event.type == "page_view"
+        assert event.user.id == "user123"
+        assert event.device.screen_width == 1920
+        assert str(event.context.url) == "https://example.com/page"
+        assert event.metrics.load_time == 250
+        assert isinstance(event.timestamp, int)
+        assert event.properties == {}
+
+    def test_analytics_event_with_properties(self):
+        """Test AnalyticsEvent with custom properties."""
+        event_data = {
+            "event": {"type": "click"},
+            "user": {"id": "user456"},
+            "device": {
+                "user_agent": "Mozilla/5.0",
+                "screen_width": 1280,
+                "screen_height": 720,
+            },
+            "context": {
+                "url": "https://example.com/button",
+                "session_id": "session456",
+            },
+            "metrics": {},
+            "properties": {
+                "button_text": "Sign Up",
+                "position_x": 100,
+                "position_y": 200,
+                "conversion_value": 99.99,
+            },
+        }
+
+        event = AnalyticsEvent(**event_data)
+
+        assert event.properties["button_text"] == "Sign Up"
+        assert event.properties["position_x"] == 100
+        assert event.properties["conversion_value"] == 99.99
+
+    def test_analytics_event_custom_timestamp(self):
+        """Test AnalyticsEvent with custom timestamp."""
+        custom_timestamp = int(time.time() * 1000) - 10000
+
+        event_data = {
+            "event": {"type": "page_view"},
+            "user": {"id": "user123"},
+            "device": {
+                "user_agent": "Mozilla/5.0",
+                "screen_width": 1920,
+                "screen_height": 1080,
+            },
+            "context": {"url": "https://example.com/page", "session_id": "session123"},
+            "metrics": {},
+            "timestamp": custom_timestamp,
+        }
+
+        event = AnalyticsEvent(**event_data)
+        assert event.timestamp == custom_timestamp
+
+    def test_analytics_event_missing_required_fields(self):
+        """Test AnalyticsEvent missing required fields."""
+        with pytest.raises(ValidationError) as exc_info:
+            AnalyticsEvent()
+
+        error_str = str(exc_info.value)
+        assert "event" in error_str
+        assert "user" in error_str
+        assert "device" in error_str
+        assert "context" in error_str
+        assert "metrics" in error_str
+
+    def test_analytics_event_json_serialization(self):
+        """Test AnalyticsEvent JSON serialization."""
+        event_data = {
+            "event": {"type": "page_view"},
+            "user": {"id": "user123"},
+            "device": {
+                "user_agent": "Mozilla/5.0",
+                "screen_width": 1920,
+                "screen_height": 1080,
+            },
+            "context": {"url": "https://example.com/page", "session_id": "session123"},
+            "metrics": {"load_time": 250},
+        }
+
+        event = AnalyticsEvent(**event_data)
+        json_str = event.model_dump_json()
+
+        assert isinstance(json_str, str)
+        assert "page_view" in json_str
+        assert "user123" in json_str
+        assert "session123" in json_str
+
+    def test_analytics_event_model_dump(self):
+        """Test AnalyticsEvent model dump."""
+        event_data = {
+            "event": {"type": "click"},
+            "user": {"id": "user789"},
+            "device": {
+                "user_agent": "Mozilla/5.0",
+                "screen_width": 1366,
+                "screen_height": 768,
+            },
+            "context": {"url": "https://example.com/form", "session_id": "session789"},
+            "metrics": {"interaction_time": 2000},
+        }
+
+        event = AnalyticsEvent(**event_data)
+        dumped = event.model_dump()
+
+        assert isinstance(dumped, dict)
+        assert dumped["event"]["type"] == "click"
+        assert dumped["user"]["id"] == "user789"
+        assert "timestamp" in dumped
