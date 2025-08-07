@@ -15,5 +15,6 @@ wait_for_service() {
 }
 
 wait_for_service kafka1 19092 "Kafka"
+wait_for_service clickhouse 9000 "ClickHouse"   
 
 python -m src.batch_processor
