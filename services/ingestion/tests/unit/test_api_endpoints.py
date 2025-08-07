@@ -100,3 +100,85 @@ class TestTrackEndpoint:
         assert sent_event.user.id == "user456"
         assert sent_event.properties["product_id"] == "SKU123"
         assert sent_event.properties["price"] == 99.99
+
+    def test_track_event_prometheus_metrics(
+        self,
+        test_client,
+        mock_kafka_producer,
+        mock_prometheus_metrics,
+        sample_analytics_event,
+    ):
+        """Test that Prometheus metrics are updated."""
+        response = test_client.post("/v1/analytics/track", json=sample_analytics_event)
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+
+        # Verify metrics were called
+        mock_prometheus_metrics["requests"].inc.assert_called_once()
+        mock_prometheus_metrics["latency"].observe.assert_called_once()
+        mock_prometheus_metrics["errors"].inc.assert_not_called()
+
+    def test_track_event_prometheus_error_metrics(
+        self,
+        test_client,
+        mock_kafka_producer,
+        mock_prometheus_metrics,
+        sample_analytics_event,
+    ):
+        """Test that Prometheus error metrics are updated on failure."""
+        mock_kafka_producer.send_event.side_effect = Exception("Kafka error")
+
+        with pytest.raises(Exception, match="Kafka error"):
+            test_client.post("/v1/analytics/track", json=sample_analytics_event)
+
+        # Verify error metrics were called
+        mock_prometheus_metrics["requests"].inc.assert_called_once()
+        mock_prometheus_metrics["errors"].inc.assert_called_once()
+        mock_prometheus_metrics["latency"].observe.assert_called_once()
+
+    def test_track_event_logging(
+        self, test_client, mock_kafka_producer, mock_logger, sample_analytics_event
+    ):
+        """Test that events are properly logged."""
+        response = test_client.post("/v1/analytics/track", json=sample_analytics_event)
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+
+        # Verify logging calls
+        # At least request received and processed
+        assert mock_logger.info.call_count >= 2
+
+        # Check for specific log messages
+        log_calls = [call.args[0] for call in mock_logger.info.call_args_list]
+        assert any("Received analytics event" in msg for msg in log_calls)
+        assert any("Event processed successfully" in msg for msg in log_calls)
+
+    def test_track_event_with_ip_address(self, test_client, mock_kafka_producer):
+        """Test tracking event with IP address."""
+        event_with_ip = {
+            "event": {"type": "page_view"},
+            "user": {"id": "user789"},
+            "device": {
+                "user_agent": "Mozilla/5.0",
+                "screen_width": 1920,
+                "screen_height": 1080,
+            },
+            "context": {
+                "url": "https://example.com/page",
+                "session_id": "session789",
+                "ip_address": "192.168.1.100",
+                "referrer": "https://google.com",
+            },
+            "metrics": {"load_time": 300},
+        }
+
+        response = test_client.post("/v1/analytics/track", json=event_with_ip)
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+
+        # Verify the event includes IP address
+        mock_kafka_producer.send_event.assert_called_once()
+        sent_event = mock_kafka_producer.send_event.call_args[0][0]
+
+        assert str(sent_event.context.ip_address) == "192.168.1.100"
+        assert str(sent_event.context.referrer) == "https://google.com/"
