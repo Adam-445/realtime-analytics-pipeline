@@ -3,6 +3,7 @@ name = "processing-service"
 version = "0.1.0"
 description = "Real-time analytics processing service"
 dependencies = [
+    "apache-flink==2.0.0",
     "pydantic-settings==2.9.1",
     "confluent-kafka==2.10.0",
     "python-json-logger==3.3.0",

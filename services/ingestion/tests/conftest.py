@@ -1,18 +1,9 @@
-"""Test configuration and fixtures for ingestion service unit tests."""
-
 import asyncio
-import os
-import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 from src.main import app
-
-# Add the service directory to path for imports
-service_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if service_path not in sys.path:
-    sys.path.insert(0, service_path)
 
 
 @pytest.fixture(scope="session")
