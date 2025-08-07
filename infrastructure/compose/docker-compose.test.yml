@@ -1,4 +1,7 @@
 services:
+  ingestion:
+    env_file: .env.test
+
   processing:
     env_file: .env.test
 
@@ -12,7 +15,7 @@ services:
       context: ../../tests
       dockerfile: Dockerfile
     volumes:
-      - ../../services:/app/services:ro
+      - ../../services:/app/services
       - ../../tests:/tests:ro
     depends_on:
       - ingestion
