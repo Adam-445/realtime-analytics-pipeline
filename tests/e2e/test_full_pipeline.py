@@ -2,9 +2,8 @@ import time
 import uuid
 
 import pytest
-
-from tests.utils.clickhouse.poll import poll_for_data
-from tests.utils.ingestion.events import create_test_event, send_event
+from utils.clickhouse.poll import poll_for_data
+from utils.ingestion.events import create_test_event, send_event
 
 
 def test_happy_path_page_view_event_is_processed(

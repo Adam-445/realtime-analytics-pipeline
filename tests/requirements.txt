@@ -1,7 +1,17 @@
 pytest==8.4.1
 pytest-asyncio==1.0.0
+pytest-mock==3.14.0
+pytest-cov==6.0.0
+httpx==0.27.2
 requests==2.32.4
 confluent-kafka==2.10.0
 clickhouse-driver==0.2.9
 pydantic-settings==2.8.0
 uuid6==2025.0.0
+fastapi==0.115.12
+pydantic==2.11.4
+uvicorn[standard]==0.34.2
+uuid==1.30
+prometheus-fastapi-instrumentator==7.1.0
+python-json-logger==3.3.0
+freezegun==1.5.1
