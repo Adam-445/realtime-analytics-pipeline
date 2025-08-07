@@ -1,4 +1,5 @@
-FROM apache/flink:2.0-scala_2.12
+# Base stage with common dependencies
+FROM apache/flink:2.0-scala_2.12 AS base
 
 # Install Python as root
 USER root
@@ -8,7 +9,6 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends python3 python3-pip netcat-openbsd curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
 
 WORKDIR /app
 
@@ -25,11 +25,6 @@ RUN curl -fSL \
     -o /opt/flink/lib/flink-json-2.0.0.jar \
     https://repo1.maven.org/maven2/org/apache/flink/flink-json/2.0.0/flink-json-2.0.0.jar
 
-# Install Python libraries
-COPY requirements.txt /app/
-RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install --no-cache-dir -r requirements.txt
-
 # Create symlink
 RUN ln -s /usr/bin/python3 /usr/bin/python
 
@@ -38,8 +33,51 @@ ENV PYFLINK_CLIENT_EXECUTABLE=python
 ENV PYFLINK_EXECUTABLE=python
 ENV PYTHONPATH=/app
 
+# Production stage
+FROM base AS production
+
+# Install production dependencies
+COPY requirements.txt /app/
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip install --no-cache-dir -r requirements.txt
+
 # Copy application code
-COPY . .
+COPY src/ /app/src/
+COPY bin/ /app/bin/
 
 # Switch back to unprivileged user
 USER flink
+
+# Default command for production
+CMD ["python", "src/main.py"]
+
+# Test stage
+FROM base AS test
+
+# Install production dependencies first
+COPY requirements.txt /app/
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip install --no-cache-dir -r requirements.txt
+
+# Install test dependencies
+COPY pyproject.toml /app/
+RUN python3 -m pip install pytest pytest-asyncio pytest-mock pytest-cov
+
+# Copy all code including tests
+COPY . /app/
+
+# Create a working directory that the flink user can write to
+RUN mkdir -p /tmp/test-work && chown flink:flink /tmp/test-work
+
+# Switch back to unprivileged user
+USER flink
+
+# Change to writable working directory
+WORKDIR /tmp/test-work
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV COVERAGE_FILE=/tmp/test-work/.coverage
+
+# Default command for testing
+CMD ["python", "-m", "pytest", "/app/tests/unit", "-v", "--cov=/app/src", "--cov-report=term-missing"]
