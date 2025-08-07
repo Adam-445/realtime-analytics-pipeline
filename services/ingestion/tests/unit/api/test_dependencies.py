@@ -1,5 +1,3 @@
-"""Unit tests for configuration and dependencies."""
-
 from unittest.mock import patch
 
 from src.api.v1.dependencies import get_kafka_producer

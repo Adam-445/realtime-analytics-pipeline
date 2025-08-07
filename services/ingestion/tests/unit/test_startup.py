@@ -1,5 +1,3 @@
-"""Unit tests for application startup and lifecycle."""
-
 from unittest.mock import patch
 
 import pytest

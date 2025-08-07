@@ -1,5 +1,3 @@
-"""Unit tests for API endpoints."""
-
 import time
 
 import pytest

@@ -1,5 +1,3 @@
-"""Unit tests for analytics event schemas."""
-
 import time
 from uuid import UUID
 
