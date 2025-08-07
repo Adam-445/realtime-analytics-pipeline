@@ -63,3 +63,40 @@ class TestTrackEndpoint:
         with pytest.raises(Exception, match="Kafka connection failed"):
             test_client.post("/v1/analytics/track", json=sample_analytics_event)
         mock_kafka_producer.send_event.assert_called_once()
+
+    def test_track_event_with_custom_properties(self, test_client, mock_kafka_producer):
+        """Test tracking event with custom properties."""
+        event_with_properties = {
+            "event": {"type": "purchase"},
+            "user": {"id": "user456"},
+            "device": {
+                "user_agent": "Mozilla/5.0",
+                "screen_width": 1366,
+                "screen_height": 768,
+            },
+            "context": {
+                "url": "https://shop.example.com/checkout",
+                "session_id": "session456",
+            },
+            "metrics": {"load_time": 150, "interaction_time": 5000},
+            "properties": {
+                "product_id": "SKU123",
+                "price": 99.99,
+                "currency": "USD",
+                "category": "electronics",
+            },
+        }
+
+        response = test_client.post("/v1/analytics/track", json=event_with_properties)
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.json() == {"status": "accepted"}
+
+        # Verify the event was sent to Kafka
+        mock_kafka_producer.send_event.assert_called_once()
+        sent_event = mock_kafka_producer.send_event.call_args[0][0]
+
+        assert sent_event.event.type == "purchase"
+        assert sent_event.user.id == "user456"
+        assert sent_event.properties["product_id"] == "SKU123"
+        assert sent_event.properties["price"] == 99.99
