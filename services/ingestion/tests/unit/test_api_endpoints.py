@@ -240,3 +240,66 @@ class TestTrackEndpoint:
             response = test_client.post("/v1/analytics/track", json=event)
 
             assert response.status_code == status.HTTP_202_ACCEPTED
+
+    def test_track_event_large_properties(self, test_client, mock_kafka_producer):
+        """Test event with large properties object."""
+        large_properties = {f"key_{i}": f"value_{i}" for i in range(100)}
+
+        event_with_large_props = {
+            "event": {"type": "page_view"},
+            "user": {"id": "user_large"},
+            "device": {
+                "user_agent": "Mozilla/5.0",
+                "screen_width": 1920,
+                "screen_height": 1080,
+            },
+            "context": {
+                "url": "https://example.com/page",
+                "session_id": "session_large",
+            },
+            "metrics": {},
+            "properties": large_properties,
+        }
+
+        response = test_client.post("/v1/analytics/track", json=event_with_large_props)
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+
+        # Verify large properties are handled
+        mock_kafka_producer.send_event.assert_called_once()
+        sent_event = mock_kafka_producer.send_event.call_args[0][0]
+
+        assert len(sent_event.properties) == 100
+        assert sent_event.properties["key_50"] == "value_50"
+
+    def test_track_event_content_type_validation(
+        self, test_client, mock_kafka_producer
+    ):
+        """Test that content type validation works."""
+        # Test with wrong content type
+        response = test_client.post(
+            "/v1/analytics/track",
+            data="not json",
+            headers={"Content-Type": "text/plain"},
+        )
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        mock_kafka_producer.send_event.assert_not_called()
+
+    def test_track_event_malformed_json(self, test_client, mock_kafka_producer):
+        """Test handling of malformed JSON."""
+        response = test_client.post(
+            "/v1/analytics/track",
+            data="{invalid json}",
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        mock_kafka_producer.send_event.assert_not_called()
+
+    def test_track_event_empty_request_body(self, test_client, mock_kafka_producer):
+        """Test handling of empty request body."""
+        response = test_client.post("/v1/analytics/track", json={})
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        mock_kafka_producer.send_event.assert_not_called()
