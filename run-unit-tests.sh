@@ -38,18 +38,19 @@ case "$test_type" in
     all)
         compose_file="infrastrcuture/compose/docker-compose.test.yml"
         test_path=""
+        ;;
     *) usage ;;
 esac
 
 # Build command
 cmd="python -m pytest $test_path -v"
-if [ "$coverage" = true]; then
-    cmd="cmd -m pytest $test_path -v --cov=services"
+if [ "$coverage" = true ]; then
+    cmd="python -m pytest $test_path -v --cov=services"
 fi
 
 # Run tests in Docker
 echo "Running $test_type tests with docker..."
-docker compose -f $compose_file run --rm test-runner cmd
+docker compose -f $compose_file run --rm test-runner $cmd
 exit_code=$?
 
 echo "Tests completed with exit code $exit_code"
