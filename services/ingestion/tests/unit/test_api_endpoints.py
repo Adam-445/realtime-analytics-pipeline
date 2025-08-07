@@ -182,3 +182,61 @@ class TestTrackEndpoint:
 
         assert str(sent_event.context.ip_address) == "192.168.1.100"
         assert str(sent_event.context.referrer) == "https://google.com/"
+
+    def test_track_event_timestamp_handling(self, test_client, mock_kafka_producer):
+        """Test event timestamp handling."""
+        custom_timestamp = int(time.time() * 1000) - 5000  # 5 seconds ago
+
+        event_with_timestamp = {
+            "event": {"type": "page_view"},
+            "user": {"id": "user999"},
+            "device": {
+                "user_agent": "Mozilla/5.0",
+                "screen_width": 1920,
+                "screen_height": 1080,
+            },
+            "context": {"url": "https://example.com/page", "session_id": "session999"},
+            "metrics": {},
+            "timestamp": custom_timestamp,
+        }
+
+        response = test_client.post("/v1/analytics/track", json=event_with_timestamp)
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+
+        # Verify custom timestamp is preserved
+        mock_kafka_producer.send_event.assert_called_once()
+        sent_event = mock_kafka_producer.send_event.call_args[0][0]
+
+        assert sent_event.timestamp == custom_timestamp
+
+    def test_track_event_user_agent_variations(self, test_client, mock_kafka_producer):
+        """Test different user agent strings."""
+        user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) "
+            "AppleWebKit/605.1.15",
+            "Custom Bot/1.0",
+            "",  # Empty user agent
+        ]
+
+        for i, user_agent in enumerate(user_agents):
+            event = {
+                "event": {"type": "page_view"},
+                "user": {"id": f"user{i}"},
+                "device": {
+                    "user_agent": user_agent,
+                    "screen_width": 1920,
+                    "screen_height": 1080,
+                },
+                "context": {
+                    "url": "https://example.com/page",
+                    "session_id": f"session{i}",
+                },
+                "metrics": {},
+            }
+
+            response = test_client.post("/v1/analytics/track", json=event)
+
+            assert response.status_code == status.HTTP_202_ACCEPTED
