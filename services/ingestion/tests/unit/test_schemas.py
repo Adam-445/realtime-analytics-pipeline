@@ -115,3 +115,38 @@ class TestContextInfo:
         error_str = str(exc_info.value)
         assert "url" in error_str
         assert "session_id" in error_str
+
+
+class TestDeviceInfo:
+    """Test cases for DeviceInfo schema."""
+
+    def test_device_info_valid(self):
+        """Test valid DeviceInfo creation."""
+        device = DeviceInfo(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            screen_width=1920,
+            screen_height=1080,
+        )
+
+        assert device.user_agent == "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        assert device.screen_width == 1920
+        assert device.screen_height == 1080
+
+    def test_device_info_missing_fields(self):
+        """Test DeviceInfo missing required fields."""
+        with pytest.raises(ValidationError) as exc_info:
+            DeviceInfo()
+
+        error_str = str(exc_info.value)
+        assert "user_agent" in error_str
+        assert "screen_width" in error_str
+        assert "screen_height" in error_str
+
+    def test_device_info_invalid_screen_dimensions(self):
+        """Test DeviceInfo with invalid screen dimensions."""
+        with pytest.raises(ValidationError):
+            DeviceInfo(
+                user_agent="Mozilla/5.0",
+                screen_width="not_a_number",
+                screen_height=1080,
+            )
