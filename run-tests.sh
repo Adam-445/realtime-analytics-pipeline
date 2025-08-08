@@ -58,6 +58,10 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
+# Docker compose configuration
+COMPOSE_FILES="-f infrastructure/compose/docker-compose.yml -f infrastructure/compose/docker-compose.test.yml"
+ENV_FILE="--env-file infrastructure/compose/.env.test"
+
 # Configure pytest arguments
 PYTEST_ARGS=""
 if [ "$VERBOSE" = true ]; then
@@ -65,7 +69,9 @@ if [ "$VERBOSE" = true ]; then
 fi
 
 if [ "$COVERAGE" = true ]; then
-    PYTEST_ARGS="$PYTEST_ARGS --cov=src --cov-report=term-missing"
+    # Create coverage-reports directory if it doesn't exist
+    mkdir -p coverage-reports
+    PYTEST_ARGS="$PYTEST_ARGS --cov=src --cov-report=term-missing --cov-report=html:coverage-reports/htmlcov"
 fi
 
 function run_unit_tests() {
@@ -73,97 +79,42 @@ function run_unit_tests() {
     
     # Build test images
     echo "Building test images..."
-    docker compose \
-        -f infrastructure/compose/docker-compose.yml \
-        -f infrastructure/compose/docker-compose.test.yml \
-        --env-file infrastructure/compose/.env.test \
-        --profile unit-tests \
-        build $BUILD_FLAGS ingestion processing
+    docker compose $COMPOSE_FILES $ENV_FILE --profile unit-tests build $BUILD_FLAGS ingestion processing storage cache
     
     echo "================================================================================"
     echo "Running ingestion service unit tests..."
-    docker compose \
-        -f infrastructure/compose/docker-compose.yml \
-        -f infrastructure/compose/docker-compose.test.yml \
-        --env-file infrastructure/compose/.env.test \
-        --profile unit-tests \
-        run --rm ingestion python -m pytest tests/unit $PYTEST_ARGS
+    docker compose $COMPOSE_FILES $ENV_FILE --profile unit-tests run --rm ingestion python -m pytest tests/unit $PYTEST_ARGS
     
     echo "================================================================================"
     echo "Running processing service unit tests..."
-    docker compose \
-        -f infrastructure/compose/docker-compose.yml \
-        -f infrastructure/compose/docker-compose.test.yml \
-        --env-file infrastructure/compose/.env.test \
-        --profile unit-tests \
-        run --rm processing python -m pytest tests/unit $PYTEST_ARGS
+    docker compose $COMPOSE_FILES $ENV_FILE --profile unit-tests run --rm processing python -m pytest tests/unit $PYTEST_ARGS
 }
 
 function run_integration_tests() {
     echo "Running integration tests..."
-    docker compose \
-        -f infrastructure/compose/docker-compose.yml \
-        -f infrastructure/compose/docker-compose.test.yml \
-        --env-file infrastructure/compose/.env.test \
-        --profile integration-tests \
-        build $BUILD_FLAGS test-runner
-    
-    docker compose \
-        -f infrastructure/compose/docker-compose.yml \
-        -f infrastructure/compose/docker-compose.test.yml \
-        --env-file infrastructure/compose/.env.test \
-        --profile integration-tests \
-        run --rm test-runner bash -c "cd /tests && python -m pytest integration $PYTEST_ARGS"
+    docker compose $COMPOSE_FILES $ENV_FILE --profile integration-tests build $BUILD_FLAGS test-runner
+    docker compose $COMPOSE_FILES $ENV_FILE --profile integration-tests run --rm test-runner bash -c "cd /tests && python -m pytest integration $PYTEST_ARGS"
 }
 
 function run_e2e_tests() {
     echo "Running end-to-end tests..."
-    docker compose \
-        -f infrastructure/compose/docker-compose.yml \
-        -f infrastructure/compose/docker-compose.test.yml \
-        --env-file infrastructure/compose/.env.test \
-        --profile e2e-tests \
-        build $BUILD_FLAGS test-runner
-    
-    docker compose \
-        -f infrastructure/compose/docker-compose.yml \
-        -f infrastructure/compose/docker-compose.test.yml \
-        --env-file infrastructure/compose/.env.test \
-        --profile e2e-tests \
-        run --rm test-runner bash -c "cd /tests && python -m pytest e2e $PYTEST_ARGS"
+    docker compose $COMPOSE_FILES $ENV_FILE --profile e2e-tests build $BUILD_FLAGS test-runner
+    docker compose $COMPOSE_FILES $ENV_FILE --profile e2e-tests run --rm test-runner bash -c "cd /tests && python -m pytest e2e $PYTEST_ARGS"
 }
 
 function run_performance_tests() {
     echo "Running performance tests..."
-    docker compose \
-        -f infrastructure/compose/docker-compose.yml \
-        -f infrastructure/compose/docker-compose.test.yml \
-        --env-file infrastructure/compose/.env.test \
-        --profile e2e-tests \
-        build $BUILD_FLAGS test-runner
-    
-    docker compose \
-        -f infrastructure/compose/docker-compose.yml \
-        -f infrastructure/compose/docker-compose.test.yml \
-        --env-file infrastructure/compose/.env.test \
-        --profile e2e-tests \
-        run --rm test-runner bash -c "cd /tests && python -m pytest performance $PYTEST_ARGS"
+    docker compose $COMPOSE_FILES $ENV_FILE --profile e2e-tests build $BUILD_FLAGS test-runner
+    docker compose $COMPOSE_FILES $ENV_FILE --profile e2e-tests run --rm test-runner bash -c "cd /tests && python -m pytest performance $PYTEST_ARGS"
 }
 
 function cleanup() {
     echo "Cleaning up test environment..."
-    docker compose \
-        -f infrastructure/compose/docker-compose.yml \
-        -f infrastructure/compose/docker-compose.test.yml \
-        --env-file infrastructure/compose/.env.test \
-        down -v 2>/dev/null || true
+    docker compose $COMPOSE_FILES $ENV_FILE down -v 2>/dev/null || true
 }
 
 # Set up cleanup trap
 trap cleanup EXIT
-
-# Create coverage-reports directory if it doesn't exist
-mkdir -p coverage-reports
 
 # Run tests based on type
 case $TEST_TYPE in
@@ -189,3 +140,6 @@ case $TEST_TYPE in
 esac
 
 echo "Tests completed successfully!"
+if [ "$COVERAGE" = true ]; then
+    echo "Coverage reports available in ./coverage-reports/"
+fi

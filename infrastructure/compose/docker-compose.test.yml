@@ -3,6 +3,8 @@ services:
     env_file: .env.test
     build:
       target: test
+    volumes:
+      - ../../coverage-reports/ingestion:/app/coverage
     profiles:
       - unit-tests
 
@@ -10,6 +12,8 @@ services:
     env_file: .env.test
     build:
       target: test
+    volumes:
+      - ../../coverage-reports/processing:/app/coverage
     profiles:
       - unit-tests
 
@@ -29,7 +33,7 @@ services:
     volumes:
       - ../../services:/app/services:ro
       - ../../tests:/tests:ro
-      - ../../coverage-reports:/coverage-reports
+      - ../../coverage-reports/integration:/app/coverage-reports
     environment:
       - PYTHONPATH=/app
     depends_on:
