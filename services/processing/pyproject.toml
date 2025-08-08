@@ -17,8 +17,26 @@ test = [
     "pytest-cov==6.0.0",
 ]
 
+[tool.coverage.run]
+source = ["src"]
+branch = true
+data_file = "/tmp/.coverage"
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+show_missing = true
+skip_covered = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = ["--cov=src", "--cov-report=term-missing"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+]
 asyncio_mode = "auto"

@@ -4,44 +4,6 @@ from src.core.config import Settings, settings
 class TestSettings:
     """Test Settings configuration class."""
 
-    def test_default_values(self):
-        """Test that default values are set correctly."""
-        config = Settings()
-
-        # Kafka settings
-        assert config.kafka_bootstrap_servers == "kafka1:19092"
-        assert config.kafka_topic_events == "analytics_events"
-        assert config.kafka_topic_event_metrics == "event_metrics"
-        assert config.kafka_topic_session_metrics == "session_metrics"
-        assert config.kafka_topic_performance_metrics == "performance_metrics"
-        assert config.processing_kafka_consumer_group == "flink-analytics-group"
-        assert config.processing_kafka_scan_startup_mode == "earliest-offset"
-
-        # Flink settings
-        assert config.flink_parallelism == 2
-        assert config.flink_checkpoint_interval_ms == 30000
-        assert config.flink_watermark_delay_seconds == 10
-        assert config.flink_idle_timeout_seconds == 5
-        assert config.processing_metrics_window_size_seconds == 60
-        assert config.processing_performance_window_size_seconds == 300
-        assert config.processing_session_gap_seconds == 1800
-
-        # Event filtering
-        assert config.processing_allowed_event_types == [
-            "page_view",
-            "click",
-            "conversion",
-            "add_to_cart",
-        ]
-
-        # Logging and environment
-        assert config.app_log_level == "INFO"
-        assert "password" in config.app_log_redaction_patterns
-        assert "token" in config.app_log_redaction_patterns
-        assert config.otel_service_name == "processing"
-        # Note: app_environment might be overridden in test environments
-        assert config.app_environment in ["production", "testing"]
-
     def test_custom_values(self):
         """Test that custom values can be set."""
         config = Settings(

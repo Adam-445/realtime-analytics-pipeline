@@ -48,9 +48,6 @@ COPY bin/ /app/bin/
 # Switch back to unprivileged user
 USER flink
 
-# Default command for production
-CMD ["python", "src/main.py"]
-
 # Test stage
 FROM base AS test
 
@@ -63,21 +60,11 @@ RUN python3 -m pip install --upgrade pip && \
 COPY pyproject.toml /app/
 RUN python3 -m pip install pytest pytest-asyncio pytest-mock pytest-cov
 
-# Copy all code including tests
+# Copy all code including tests with proper ownership
 COPY . /app/
-
-# Create a working directory that the flink user can write to
-RUN mkdir -p /tmp/test-work && chown flink:flink /tmp/test-work
 
 # Switch back to unprivileged user
 USER flink
 
-# Change to writable working directory
-WORKDIR /tmp/test-work
-
 # Set environment variables
-ENV PYTHONPATH=/app
-ENV COVERAGE_FILE=/tmp/test-work/.coverage
-
-# Default command for testing
-CMD ["python", "-m", "pytest", "/app/tests/unit", "-v", "--cov=/app/src", "--cov-report=term-missing"]
+ENV COVERAGE_FILE=/app/.coverage
