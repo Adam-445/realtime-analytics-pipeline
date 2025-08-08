@@ -1,47 +1,23 @@
 services:
   ingestion:
     env_file: .env.test
+    build:
+      target: test
+    profiles:
+      - unit-tests
 
   processing:
     env_file: .env.test
+    build:
+      target: test
+    profiles:
+      - unit-tests
 
   storage:
     env_file: .env.test
 
-  # Unit test services - isolated test containers for each service
-  ingestion-test:
-    build:
-      context: ../../services/ingestion
-      dockerfile: Dockerfile
-      target: test
-    volumes:
-      - ../../services/ingestion:/app
-      - ../../coverage-reports:/coverage-reports
-    environment:
-      - PYTHONPATH=/app
-      - COVERAGE_FILE=/coverage-reports/.coverage_ingestion
-    working_dir: /app
-    networks:
-      - analytics_net
-    profiles:
-      - unit-tests
-
-  processing-test:
-    build:
-      context: ../../services/processing
-      dockerfile: Dockerfile.processing
-      target: test
-    volumes:
-      - ../../services/processing:/app
-      - ../../coverage-reports:/coverage-reports
-    environment:
-      - PYTHONPATH=/app
-      - COVERAGE_FILE=/coverage-reports/.coverage_processing
-    working_dir: /app
-    networks:
-      - analytics_net
-    profiles:
-      - unit-tests
+  cache:
+    env_file: .env.test
 
   # Integration and E2E test runner
   test-runner:

@@ -78,7 +78,7 @@ function run_unit_tests() {
         -f infrastructure/compose/docker-compose.test.yml \
         --env-file infrastructure/compose/.env.test \
         --profile unit-tests \
-        build $BUILD_FLAGS ingestion-test processing-test
+        build $BUILD_FLAGS ingestion processing
     
     echo "================================================================================"
     echo "Running ingestion service unit tests..."
@@ -87,7 +87,7 @@ function run_unit_tests() {
         -f infrastructure/compose/docker-compose.test.yml \
         --env-file infrastructure/compose/.env.test \
         --profile unit-tests \
-        run --rm ingestion-test python -m pytest tests/unit $PYTEST_ARGS
+        run --rm ingestion python -m pytest tests/unit $PYTEST_ARGS
     
     echo "================================================================================"
     echo "Running processing service unit tests..."
@@ -96,7 +96,7 @@ function run_unit_tests() {
         -f infrastructure/compose/docker-compose.test.yml \
         --env-file infrastructure/compose/.env.test \
         --profile unit-tests \
-        run --rm processing-test python -m pytest tests/unit $PYTEST_ARGS
+        run --rm processing python -m pytest tests/unit $PYTEST_ARGS
 }
 
 function run_integration_tests() {
