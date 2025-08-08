@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+redis
+confluent-kafka
+pydantic
+pydantic-settings
+prometheus-client
+python-json-logger
+clickhouse-connect

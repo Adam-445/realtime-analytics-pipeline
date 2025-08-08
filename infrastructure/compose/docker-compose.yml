@@ -9,11 +9,6 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_SERVER_ID: 1
       ZOOKEEPER_SERVERS: zoo1:2888:3888
-    healthcheck:
-      test: [ "CMD", "zcsh", "echo ruok | nc localhost 2181 | grep imok" ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
     networks:
       - analytics_net
     restart: unless-stopped
@@ -202,6 +197,29 @@ services:
     networks:
       - analytics_net
     restart: unless-stopped
+
+  redis:
+    image: redis:8.2-alpine
+    hostname: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - analytics_net
+    restart: unless-stopped
+
+  cache:
+    build:
+      context: ../../services/cache
+      dockerfile: Dockerfile
+    hostname: cache
+    ports:
+      - "8080:8000"
+    depends_on:
+      - kafka1
+      - redis
+    networks:
+      - analytics_net
+    restart: on-failure
 
 volumes:
   clickhouse_data:
