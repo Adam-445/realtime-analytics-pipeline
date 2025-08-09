@@ -1,0 +1,47 @@
+[project]
+name = "ingestion-service"
+version = "0.1.0"
+description = "Real-time analytics ingestion service"
+dependencies = [
+    "fastapi==0.115.12",
+    "pydantic==2.11.4",
+    "pydantic-settings==2.9.1",
+    "uvicorn[standard]==0.34.2",
+    "confluent-kafka==2.7.0",
+    "uuid6==2025.0.0",
+    "prometheus-fastapi-instrumentator==7.1.0",
+    "python-json-logger==3.3.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest==8.4.1",
+    "pytest-asyncio==1.0.0",
+    "pytest-mock==3.14.0",
+    "pytest-cov==6.0.0",
+    "httpx==0.27.2",
+]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+data_file = "/tmp/.coverage"
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+show_missing = true
+skip_covered = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+]
+asyncio_mode = "auto"

@@ -1,5 +1,5 @@
-# Use a minimal Python base image
-FROM python:3.13-slim
+# Base stage with common dependencies
+FROM python:3.13-slim AS base
 
 # Set working directory
 WORKDIR /app
@@ -11,16 +11,26 @@ RUN apt-get update && \
     curl && \
     rm -rf /var/lib/apt/lists/*
 
+# Set PYTHONPATH to ensure imports work from /app
+ENV PYTHONPATH=/app
+
 # Copy dependency list and install Python packages
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt  
 
-# Copy the rest of the application code
+# Production stage
+FROM base AS production
+
+# Copy application code
+COPY src/ /app/src/
+COPY bin/ /app/bin/
+
+# Test stage
+FROM base AS test
+
+# Install test dependencies
+COPY pyproject.toml .
+RUN pip install pytest pytest-asyncio pytest-mock pytest-cov httpx
+
+# Copy all code including tests
 COPY . .
-
-# Set PYTHONPATH to ensure imports work from /app
-ENV PYTHONPATH=/app
-
-# Define the entrypoint
-RUN chmod +x /app/bin/entrypoint.sh
-ENTRYPOINT ["/app/bin/entrypoint.sh"]

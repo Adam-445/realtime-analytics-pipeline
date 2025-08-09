@@ -1,10 +1,25 @@
 services:
+  ingestion:
+    env_file: .env.test
+    build:
+      target: test
+    volumes:
+      - ../../coverage-reports/ingestion:/app/coverage
+
   processing:
     env_file: .env.test
+    build:
+      target: test
+    volumes:
+      - ../../coverage-reports/processing:/app/coverage
 
   storage:
     env_file: .env.test
 
+  cache:
+    env_file: .env.test
+
+  # Integration and E2E test runner
   test-runner:
     env_file:
       - .env.test
@@ -14,14 +29,19 @@ services:
     volumes:
       - ../../services:/app/services:ro
       - ../../tests:/tests:ro
+      - ../../coverage-reports/integration:/app/coverage-reports
+    environment:
+      - PYTHONPATH=/app
     depends_on:
-      - ingestion
-      - processing
-      - storage
+      kafka1:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      ingestion:
+        condition: service_started
+      processing:
+        condition: service_started
+      storage:
+        condition: service_started
     networks:
       - analytics_net
-
-networks:
-  analytics_net:
-    driver: bridge
-    name: analytics_net_test
