@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
 from fastapi import FastAPI
@@ -11,7 +12,33 @@ from src.realtime.repository import CacheRepository
 
 logger = get_logger("cache.main")
 
-app = FastAPI(title="Real-time Analytics Cache", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting cache service")
+    app.state.redis = await _init_redis_with_retry()
+    app.state.repo = CacheRepository(
+        app.state.redis,
+        settings.window_retention_count,
+        settings.window_hash_ttl_seconds,
+    )
+    app.state.ready_event = asyncio.Event()
+    app.state.consumer_task = asyncio.create_task(
+        consume_loop(app.state.repo, app.state)
+    )
+    try:
+        yield
+    finally:
+        logger.info("Shutting down cache service")
+        app.state.consumer_task.cancel()
+        try:
+            await app.state.consumer_task
+        except Exception:
+            pass
+        await app.state.redis.close()
+
+
+app = FastAPI(title="Real-time Analytics Cache", version="0.1.0", lifespan=lifespan)
 
 
 async def _init_redis_with_retry():
@@ -40,46 +67,20 @@ async def _init_redis_with_retry():
     raise RuntimeError("Could not connect to Redis after retries")
 
 
-@app.on_event("startup")
-async def startup():
-    logger.info("Starting cache service")
-    app.state.redis = await _init_redis_with_retry()
-    app.state.repo = CacheRepository(
-        app.state.redis,
-        settings.window_retention_count,
-        settings.window_hash_ttl_seconds,
-    )
-    app.state.ready_event = asyncio.Event()
-    app.state.consumer_task = asyncio.create_task(
-        consume_loop(app.state.repo, app.state)
-    )
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    logger.info("Shutting down cache service")
-    app.state.consumer_task.cancel()
-    try:
-        await app.state.consumer_task
-    except Exception:  # noqa
-        pass
-    await app.state.redis.close()
-
-
 @app.get("/healthz")
 async def healthz():
     """Liveness probe."""
     try:
         pong = await app.state.redis.ping()
         return {"status": "ok", "redis": pong}
-    except Exception as e:  # noqa
+    except Exception as e:
         return Response(status_code=503, content=str(e))
 
 
 @app.get("/readyz")
 async def readyz():
     """Readiness: first Kafka message processed."""
-    if app.state.ready_event.is_set():  # type: ignore[attr-defined]
+    if app.state.ready_event.is_set():
         return {"status": "ready"}
     return Response(status_code=503, content="not ready")
 
@@ -118,7 +119,7 @@ async def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-# TODO: WebSocket streaming endpoint (/ws/stream) in follow-up PR.
+# TODO: WebSocket streaming endpoint (/ws/stream).
 # TODO: Active session tracking & summary endpoints.
 
 if __name__ == "__main__":
