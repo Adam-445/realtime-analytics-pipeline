@@ -1,31 +1,43 @@
 import asyncio
 import json
-from typing import Any, Dict
+import time
+from typing import Any
 
 from aiokafka import AIOKafkaConsumer
 from prometheus_client import Counter, Gauge, Histogram
 from src.core.config import settings
 from src.core.logger import get_logger
 
-from .repository import CacheRepository
+from .repository import CacheRepository, Operation
 
 logger = get_logger("cache.consumer")
+
 
 RECORDS_PROCESSED = Counter("cache_records_total", "Kafka records processed")
 BATCH_COMMITS = Counter("cache_kafka_commits_total", "Kafka batch commits")
 QUEUE_SIZE = Gauge("cache_queue_size", "Current size of processing queue")
+PENDING_COMMITS = Gauge(
+    "cache_pending_commit_messages", "Messages consumed but not yet committed"
+)
 REDIS_BATCH_LAT = Histogram("cache_redis_batch_seconds", "Redis batch write latency")
 
 
 async def consume_loop(repo: CacheRepository, app_state: Any):
-    queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(
+    """Main consumption loop.
+
+    Consumes Kafka records, translates them to Operation objects, places them on
+    a bounded queue processed by a Redis pipeline worker with batching and
+    commit aggregation.
+    """
+    queue: asyncio.Queue[Operation] = asyncio.Queue(
         maxsize=settings.redis_queue_max_size
     )
     stop_event = asyncio.Event()
 
     async def redis_worker():
-        batch: list[dict] = []
-        last_flush = asyncio.get_event_loop().time()
+        """Drain queue and apply batched Redis writes + commit offsets."""
+        batch: list[Operation] = []
+        last_flush = time.monotonic()
         commit_pending = 0
         while not stop_event.is_set() or not queue.empty():
             timeout = settings.kafka_commit_interval_ms / 1000
@@ -34,10 +46,11 @@ async def consume_loop(repo: CacheRepository, app_state: Any):
                 batch.append(item)
                 commit_pending += 1
                 QUEUE_SIZE.set(queue.qsize())
+                PENDING_COMMITS.set(commit_pending)
             except asyncio.TimeoutError:
                 pass
 
-            now = asyncio.get_event_loop().time()
+            now = time.monotonic()
             flush_due_time = (now - last_flush) >= (
                 settings.kafka_commit_interval_ms / 1000
             )
@@ -55,9 +68,10 @@ async def consume_loop(repo: CacheRepository, app_state: Any):
                     await consumer.commit()
                     BATCH_COMMITS.inc()
                     commit_pending = 0
-                except Exception as e:  # noqa
+                except Exception as e:
                     logger.warning("Kafka commit failed: %s", e)
-        # Final flush
+                PENDING_COMMITS.set(commit_pending)
+        # Final flush after loop exit
         if batch:
             with REDIS_BATCH_LAT.time():
                 await repo.pipeline_apply(batch)
@@ -67,6 +81,7 @@ async def consume_loop(repo: CacheRepository, app_state: Any):
                 BATCH_COMMITS.inc()
             except Exception:
                 pass
+        PENDING_COMMITS.set(0)
 
     consumer = AIOKafkaConsumer(
         *settings.cache_kafka_topics,
@@ -86,7 +101,7 @@ async def consume_loop(repo: CacheRepository, app_state: Any):
                 f"on attempt {attempt}"
             )
             break
-        except Exception as e:  # noqa
+        except Exception as e:
             logger.warning(
                 "Kafka consumer start failed attempt %d: %s (retrying in %.1fs)",
                 attempt,
@@ -102,20 +117,23 @@ async def consume_loop(repo: CacheRepository, app_state: Any):
     try:
         async for msg in consumer:
             RECORDS_PROCESSED.inc()
-            try:
-                op = parse_message(msg.topic, msg.value or {})
-                if op:
-                    try:
-                        queue.put_nowait(op)
-                    except asyncio.QueueFull:
-                        logger.warning("Queue full; dropping metric window update")
-            except Exception as e:  # noqa
-                logger.exception("Failed processing message: %s", e)
+            payload = msg.value or {}
+            op = parse_message(msg.topic, payload)
+            if op:
+                try:
+                    queue.put_nowait(op)  # backpressure via QueueFull handling
+                except asyncio.QueueFull:
+                    logger.warning("Queue full; dropping metric window update")
             if first:
                 first = False
-                # signal readiness
                 if getattr(app_state, "ready_event", None):
                     app_state.ready_event.set()
+    except asyncio.CancelledError:  # graceful cancellation
+        logger.info("consume_loop cancelled")
+        raise
+    except Exception as e:  # noqa
+        logger.exception("Fatal error in consume_loop: %s", e)
+        raise
     finally:
         stop_event.set()
         await worker_task
@@ -123,35 +141,38 @@ async def consume_loop(repo: CacheRepository, app_state: Any):
         logger.info("Kafka consumer stopped")
 
 
-def parse_message(topic: str, payload: dict) -> Dict[str, Any] | None:
-    # Return op dict or None
+def parse_message(topic: str, payload: dict) -> Operation | None:
+    """Translate a raw Kafka topic/payload into an Operation.
+
+    Returns None for topics we intentionally ignore (e.g. session_metrics for now).
+    """
     if topic == "event_metrics":
-        # window_start may be ms epoch or ISO string
         window_start = _coerce_ts(payload.get("window_start"))
         event_type = payload.get("event_type")
-        event_count = int(payload.get("event_count", 0))
-        user_count = int(payload.get("user_count", 0))
-        key_prefix = f"{event_type}"  # fields flattened per design e.g. page_view.count
+        if not event_type:
+            return None
         fields = {
-            f"{key_prefix}.count": event_count,
-            f"{key_prefix}.users": user_count,
+            f"{event_type}.count": int(payload.get("event_count", 0)),
+            f"{event_type}.users": int(payload.get("user_count", 0)),
         }
-        return {"type": "event", "window_start": window_start, "fields": fields}
-    elif topic == "performance_metrics":
+        return Operation(type="event", window_start=window_start, fields=fields)
+    if topic == "performance_metrics":
         window_start = _coerce_ts(payload.get("window_start"))
         device_category = payload.get("device_category")
-        avg_load_time = float(payload.get("avg_load_time", 0))
-        p95_load_time = float(payload.get("p95_load_time", 0))
+        if not device_category:
+            return None
         fields = {
-            f"{device_category}.avg_load_time": avg_load_time,
-            f"{device_category}.p95_load_time": p95_load_time,
+            f"{device_category}.avg_load_time": float(
+                payload.get("avg_load_time", 0.0)
+            ),
+            f"{device_category}.p95_load_time": float(
+                payload.get("p95_load_time", 0.0)
+            ),
         }
-        return {"type": "perf", "window_start": window_start, "fields": fields}
-    elif topic == "session_metrics":
-        # For MVP we'll push completed sessions into a capped list (optional future)
+        return Operation(type="perf", window_start=window_start, fields=fields)
+    if topic == "session_metrics":
         return None
-    else:
-        logger.warning("Unhandled topic %s", topic)
+    logger.warning("Unhandled topic %s", topic)
     return None
 
 
