@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional, TypedDict
 
 from redis.asyncio import Redis
 
@@ -13,6 +13,14 @@ ACTIVE_SESSION_INDEX = "session:active:index"
 ROLLUP_EVENT_CURRENT = "rollup:events:current_window:{event_type}"
 ROLLUP_ACTIVE_USERS_HLL = "rollup:active_users:hyperloglog"
 PUBSUB_CHANNEL_UPDATES = "channel:metrics:updates"
+
+
+class Operation(TypedDict):
+    """Internal operation used for batched Redis writes."""
+
+    type: Literal["event", "perf"]
+    window_start: int
+    fields: Dict[str, Any]
 
 
 class CacheRepository:
@@ -40,7 +48,7 @@ class CacheRepository:
         await self.r.zadd(WINDOW_PERF_INDEX, {str(window_start_ms): window_start_ms})
         await self._trim_index(WINDOW_PERF_INDEX)
 
-    async def pipeline_apply(self, ops: list[dict]):
+    async def pipeline_apply(self, ops: List[Operation]):
         """Apply a batch of operations using a pipeline.
 
         Each op dict: {"type": "event"|"perf", "window_start": int, "fields": {...}}
@@ -48,23 +56,29 @@ class CacheRepository:
         if not ops:
             return
         pipe = self.r.pipeline(transaction=False)
+        saw_event = False
+        saw_perf = False
         for op in ops:
             w = op["window_start"]
             if op["type"] == "event":
+                saw_event = True
                 key = WINDOW_EVENT_HASH.format(window_start=w)
                 pipe.hset(key, mapping=op["fields"])  # type: ignore[arg-type]
                 pipe.expire(key, self.window_hash_ttl)
                 pipe.zadd(WINDOW_EVENT_INDEX, {str(w): w})
             elif op["type"] == "perf":
+                saw_perf = True
                 key = WINDOW_PERF_HASH.format(window_start=w)
                 pipe.hset(key, mapping=op["fields"])  # type: ignore[arg-type]
                 pipe.expire(key, self.window_hash_ttl)
                 pipe.zadd(WINDOW_PERF_INDEX, {str(w): w})
         # Execute writes
         await pipe.execute()
-        # Trim indices (do separately to avoid large scripts inside pipeline)
-        await self._trim_index(WINDOW_EVENT_INDEX)
-        await self._trim_index(WINDOW_PERF_INDEX)
+        # Trim only indices that were touched in this batch
+        if saw_event:
+            await self._trim_index(WINDOW_EVENT_INDEX)
+        if saw_perf:
+            await self._trim_index(WINDOW_PERF_INDEX)
 
     async def get_latest_event_window(self) -> Optional[Dict[str, Any]]:
         ids = await self.r.zrevrange(WINDOW_EVENT_INDEX, 0, 0)
@@ -77,24 +91,12 @@ class CacheRepository:
         return {"window_start": int(ids[0]), **self._convert_types(data)}
 
     async def get_last_event_windows(self, limit: int) -> List[Dict[str, Any]]:
-        ids = await self.r.zrevrange(WINDOW_EVENT_INDEX, 0, limit - 1)
-        results: List[Dict[str, Any]] = []
-        for wid in ids:
-            key = WINDOW_EVENT_HASH.format(window_start=wid)
-            data = await self.r.hgetall(key)  # type: ignore[func-returns-value]
-            if data:
-                results.append({"window_start": int(wid), **self._convert_types(data)})
-        return results
+        return await self._get_last_windows(
+            WINDOW_EVENT_INDEX, WINDOW_EVENT_HASH, limit
+        )
 
     async def get_last_performance_windows(self, limit: int) -> List[Dict[str, Any]]:
-        ids = await self.r.zrevrange(WINDOW_PERF_INDEX, 0, limit - 1)
-        results: List[Dict[str, Any]] = []
-        for wid in ids:
-            key = WINDOW_PERF_HASH.format(window_start=wid)
-            data = await self.r.hgetall(key)  # type: ignore[func-returns-value]
-            if data:
-                results.append({"window_start": int(wid), **self._convert_types(data)})
-        return results
+        return await self._get_last_windows(WINDOW_PERF_INDEX, WINDOW_PERF_HASH, limit)
 
     async def publish_update(self, payload: Dict[str, Any]):
         # Serialize to JSON string for pubsub consumers
@@ -119,3 +121,15 @@ class CacheRepository:
                 except ValueError:
                     out[k] = v
         return out
+
+    async def _get_last_windows(
+        self, index_key: str, hash_pattern: str, limit: int
+    ) -> List[Dict[str, Any]]:
+        ids = await self.r.zrevrange(index_key, 0, limit - 1)
+        results: List[Dict[str, Any]] = []
+        for wid in ids:
+            key = hash_pattern.format(window_start=wid)
+            data = await self.r.hgetall(key)  # type: ignore[func-returns-value]
+            if data:
+                results.append({"window_start": int(wid), **self._convert_types(data)})
+        return results
