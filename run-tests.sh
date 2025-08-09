@@ -79,33 +79,33 @@ function run_unit_tests() {
     
     # Build test images
     echo "Building test images..."
-    docker compose $COMPOSE_FILES $ENV_FILE --profile unit-tests build $BUILD_FLAGS ingestion processing storage cache
+    docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS ingestion processing storage cache
     
     echo "================================================================================"
     echo "Running ingestion service unit tests..."
-    docker compose $COMPOSE_FILES $ENV_FILE --profile unit-tests run --rm ingestion python -m pytest tests/unit $PYTEST_ARGS
+    docker compose $COMPOSE_FILES $ENV_FILE run --rm ingestion python -m pytest tests/unit $PYTEST_ARGS
     
     echo "================================================================================"
     echo "Running processing service unit tests..."
-    docker compose $COMPOSE_FILES $ENV_FILE --profile unit-tests run --rm processing python -m pytest tests/unit $PYTEST_ARGS
+    docker compose $COMPOSE_FILES $ENV_FILE run --rm processing python -m pytest tests/unit $PYTEST_ARGS
 }
 
 function run_integration_tests() {
     echo "Running integration tests..."
-    docker compose $COMPOSE_FILES $ENV_FILE --profile integration-tests build $BUILD_FLAGS test-runner
-    docker compose $COMPOSE_FILES $ENV_FILE --profile integration-tests run --rm test-runner bash -c "cd /tests && python -m pytest integration $PYTEST_ARGS"
+    docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS test-runner
+    docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest integration $PYTEST_ARGS"
 }
 
 function run_e2e_tests() {
     echo "Running end-to-end tests..."
-    docker compose $COMPOSE_FILES $ENV_FILE --profile e2e-tests build $BUILD_FLAGS test-runner
-    docker compose $COMPOSE_FILES $ENV_FILE --profile e2e-tests run --rm test-runner bash -c "cd /tests && python -m pytest e2e $PYTEST_ARGS"
+    docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS
+    docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest e2e $PYTEST_ARGS"
 }
 
 function run_performance_tests() {
     echo "Running performance tests..."
-    docker compose $COMPOSE_FILES $ENV_FILE --profile e2e-tests build $BUILD_FLAGS test-runner
-    docker compose $COMPOSE_FILES $ENV_FILE --profile e2e-tests run --rm test-runner bash -c "cd /tests && python -m pytest performance $PYTEST_ARGS"
+    docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS test-runner
+    docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest performance $PYTEST_ARGS"
 }
 
 function cleanup() {

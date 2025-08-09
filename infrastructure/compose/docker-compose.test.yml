@@ -5,8 +5,6 @@ services:
       target: test
     volumes:
       - ../../coverage-reports/ingestion:/app/coverage
-    profiles:
-      - unit-tests
 
   processing:
     env_file: .env.test
@@ -14,8 +12,6 @@ services:
       target: test
     volumes:
       - ../../coverage-reports/processing:/app/coverage
-    profiles:
-      - unit-tests
 
   storage:
     env_file: .env.test
@@ -49,6 +45,3 @@ services:
         condition: service_started
     networks:
       - analytics_net
-    profiles:
-      - integration-tests
-      - e2e-tests
