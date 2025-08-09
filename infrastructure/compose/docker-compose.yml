@@ -166,6 +166,7 @@ services:
     networks:
       - analytics_net
     restart: on-failure
+    command: [ "bash", "/app/bin/entrypoint.sh" ]
 
   processing:
     build:
