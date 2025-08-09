@@ -29,6 +29,7 @@ Current endpoints:
 - `GET /metrics/event/latest` – latest event metrics window (flattened per event type)
 - `GET /metrics/event/windows?limit=N` – last N event windows
 - `GET /metrics/performance/windows?limit=N` – last N performance windows
+- `GET /metrics/overview` – combined latest event + performance snapshots
 - `GET /metrics` – Prometheus metrics
 
 Redis key patterns (abbreviated):
@@ -38,5 +39,13 @@ Redis key patterns (abbreviated):
 - `metrics:perf:{window_start_ms}` / `metrics:perf:windows`
 
 Planned (future PRs): WebSocket streaming (`/ws/stream`), active session state, completed session lists, client subscription fanout, raw event tail for mid-window freshness.
+
+Prometheus metrics (selected):
+
+- `cache_records_total` – total Kafka records processed
+- `cache_kafka_commits_total` – Kafka offset batch commits
+- `cache_queue_size` – current in-memory processing queue length
+- `cache_pending_commit_messages` – messages consumed but not yet committed (gauge)
+- `cache_redis_batch_seconds` – histogram of Redis pipeline batch execution time
 
 Run (in Docker Compose): the cache service listens on `:8080` and depends on `redis` + `kafka1`.
