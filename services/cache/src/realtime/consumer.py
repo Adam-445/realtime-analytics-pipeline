@@ -34,7 +34,16 @@ async def consume_loop(repo: CacheRepository, app_state: Any):
     )
     stop_event = asyncio.Event()
 
-    async def redis_worker():
+    consumer = AIOKafkaConsumer(
+        *settings.cache_kafka_topics,
+        bootstrap_servers=settings.kafka_bootstrap_servers,
+        group_id=settings.cache_kafka_consumer_group,
+        enable_auto_commit=False,
+        auto_offset_reset=settings.cache_consume_from,
+        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+    )
+
+    async def redis_worker(kafka_consumer: AIOKafkaConsumer):
         """Drain queue and apply batched Redis writes + commit offsets."""
         batch: list[Operation] = []
         last_flush = time.monotonic()
@@ -63,9 +72,9 @@ async def consume_loop(repo: CacheRepository, app_state: Any):
                     await repo.pipeline_apply(batch)
                 batch.clear()
                 last_flush = now
-            if commit_due and consumer is not None:
+            if commit_due and kafka_consumer is not None:
                 try:
-                    await consumer.commit()
+                    await kafka_consumer.commit()
                     BATCH_COMMITS.inc()
                     commit_pending = 0
                 except Exception as e:
@@ -75,22 +84,14 @@ async def consume_loop(repo: CacheRepository, app_state: Any):
         if batch:
             with REDIS_BATCH_LAT.time():
                 await repo.pipeline_apply(batch)
-        if commit_pending and consumer is not None:
+        if commit_pending and kafka_consumer is not None:
             try:
-                await consumer.commit()
+                await kafka_consumer.commit()
                 BATCH_COMMITS.inc()
             except Exception:
                 pass
         PENDING_COMMITS.set(0)
 
-    consumer = AIOKafkaConsumer(
-        *settings.cache_kafka_topics,
-        bootstrap_servers=settings.kafka_bootstrap_servers,
-        group_id=settings.cache_kafka_consumer_group,
-        enable_auto_commit=False,
-        auto_offset_reset=settings.cache_consume_from,
-        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-    )
     # Retry start with backoff (handles broker not ready yet)
     delay = 1.0
     for attempt in range(1, 8):
@@ -113,7 +114,7 @@ async def consume_loop(repo: CacheRepository, app_state: Any):
     else:
         raise RuntimeError("Kafka consumer could not start after retries")
     first = True
-    worker_task = asyncio.create_task(redis_worker())
+    worker_task = asyncio.create_task(redis_worker(consumer))
     try:
         async for msg in consumer:
             RECORDS_PROCESSED.inc()
