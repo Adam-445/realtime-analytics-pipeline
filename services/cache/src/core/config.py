@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     kafka_bootstrap_servers: str = "kafka1:19092"
     cache_kafka_topics: list[str] = [
         "event_metrics",
-        "session_metrics",
+        # "session_metrics", # TODO: add when session caching implemented
         "performance_metrics",
     ]
     cache_kafka_consumer_group: str = "cache-service"

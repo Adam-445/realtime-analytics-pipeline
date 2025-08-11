@@ -1,7 +1,7 @@
 import asyncio
 import json
 import time
-from typing import Any
+from typing import Any, Optional
 
 from aiokafka import AIOKafkaConsumer
 from prometheus_client import Counter, Gauge, Histogram
@@ -18,6 +18,9 @@ BATCH_COMMITS = Counter("cache_kafka_commits_total", "Kafka batch commits")
 QUEUE_SIZE = Gauge("cache_queue_size", "Current size of processing queue")
 PENDING_COMMITS = Gauge(
     "cache_pending_commit_messages", "Messages consumed but not yet committed"
+)
+REDIS_BATCH_ERRORS = Counter(
+    "cache_redis_batch_errors_total", "Redis batch write errors"
 )
 REDIS_BATCH_LAT = Histogram("cache_redis_batch_seconds", "Redis batch write latency")
 
@@ -47,49 +50,61 @@ async def consume_loop(repo: CacheRepository, app_state: Any):
         """Drain queue and apply batched Redis writes + commit offsets."""
         batch: list[Operation] = []
         last_flush = time.monotonic()
-        commit_pending = 0
         while not stop_event.is_set() or not queue.empty():
             timeout = settings.kafka_commit_interval_ms / 1000
             try:
                 item = await asyncio.wait_for(queue.get(), timeout)
                 batch.append(item)
-                commit_pending += 1
                 QUEUE_SIZE.set(queue.qsize())
-                PENDING_COMMITS.set(commit_pending)
+                PENDING_COMMITS.set(len(batch))
             except asyncio.TimeoutError:
                 pass
 
             now = time.monotonic()
-            flush_due_time = (now - last_flush) >= (
-                settings.kafka_commit_interval_ms / 1000
-            )
+            flush_due_time = (now - last_flush) >= timeout
             flush_due_size = len(batch) >= settings.redis_write_batch_size
-            commit_due = (
-                commit_pending >= settings.kafka_commit_batch_size or flush_due_time
-            )
             if batch and (flush_due_time or flush_due_size):
-                with REDIS_BATCH_LAT.time():
-                    await repo.pipeline_apply(batch)
+                try:
+                    with REDIS_BATCH_LAT.time():
+                        await repo.pipeline_apply(batch)
+                except Exception as e:
+                    REDIS_BATCH_ERRORS.inc()
+                    logger.error(
+                        "Redis batch apply failed (will retry same batch)",
+                        extra={"error": str(e), "batch_size": len(batch)},
+                    )
+                    # brief yield before retry
+                    await asyncio.sleep(0.2)
+                    continue  # keep batch intact for retry
+
+                # Success path: commit offsets up to what we consumed
+                if kafka_consumer is not None:
+                    try:
+                        await kafka_consumer.commit()
+                        BATCH_COMMITS.inc()
+                    except Exception as e:
+                        logger.warning(f"Kafka commit failed after batch flush: {e}")
+                        # Keep batch cleared, will reprocess on restart
                 batch.clear()
                 last_flush = now
-            if commit_due and kafka_consumer is not None:
-                try:
-                    await kafka_consumer.commit()
-                    BATCH_COMMITS.inc()
-                    commit_pending = 0
-                except Exception as e:
-                    logger.warning("Kafka commit failed: %s", e)
-                PENDING_COMMITS.set(commit_pending)
+                PENDING_COMMITS.set(0)
         # Final flush after loop exit
         if batch:
-            with REDIS_BATCH_LAT.time():
-                await repo.pipeline_apply(batch)
-        if commit_pending and kafka_consumer is not None:
             try:
-                await kafka_consumer.commit()
-                BATCH_COMMITS.inc()
-            except Exception:
-                pass
+                with REDIS_BATCH_LAT.time():
+                    await repo.pipeline_apply(batch)
+                if kafka_consumer is not None:
+                    try:
+                        await kafka_consumer.commit()
+                        BATCH_COMMITS.inc()
+                    except Exception as e:
+                        logger.warning(f"Kafka commit failed on final flush {e}")
+            except Exception as e:
+                REDIS_BATCH_ERRORS.inc()
+                logger.error(
+                    "Final Redis batch failed (batch dropped)",
+                    extra={"error": str(e), "batch_size": len(batch)},
+                )
         PENDING_COMMITS.set(0)
 
     # Retry start with backoff (handles broker not ready yet)
@@ -121,10 +136,8 @@ async def consume_loop(repo: CacheRepository, app_state: Any):
             payload = msg.value or {}
             op = parse_message(msg.topic, payload)
             if op:
-                try:
-                    queue.put_nowait(op)  # backpressure via QueueFull handling
-                except asyncio.QueueFull:
-                    logger.warning("Queue full; dropping metric window update")
+                # Block instead of drop to avoid commiting past unwritted data
+                await queue.put(op)
             if first:
                 first = False
                 if getattr(app_state, "ready_event", None):
@@ -149,6 +162,8 @@ def parse_message(topic: str, payload: dict) -> Operation | None:
     """
     if topic == "event_metrics":
         window_start = _coerce_ts(payload.get("window_start"))
+        if not window_start:
+            return None
         event_type = payload.get("event_type")
         if not event_type:
             return None
@@ -160,6 +175,8 @@ def parse_message(topic: str, payload: dict) -> Operation | None:
     if topic == "performance_metrics":
         window_start = _coerce_ts(payload.get("window_start"))
         device_category = payload.get("device_category")
+        if not window_start:
+            return None
         if not device_category:
             return None
         fields = {
@@ -177,7 +194,8 @@ def parse_message(topic: str, payload: dict) -> Operation | None:
     return None
 
 
-def _coerce_ts(value: Any) -> int:
+def _coerce_ts(value: Any) -> Optional[int]:
+    """Convert int ms or ISO8601 string to epoch ms; return None if invalid."""
     # If value already int (ms), return; if ISO8601 convert to epoch ms
     if isinstance(value, int):
         return value
@@ -190,4 +208,4 @@ def _coerce_ts(value: Any) -> int:
             return int(dt.timestamp() * 1000)
         except Exception:
             logger.warning("Unable to parse window_start %s", value)
-    return 0
+    return None
