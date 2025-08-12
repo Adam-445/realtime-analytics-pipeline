@@ -16,11 +16,6 @@ FROM base AS production
 COPY src/ /app/src/
 COPY bin/entrypoint.sh /app/bin/entrypoint.sh
 
-EXPOSE 8080
-
-RUN chmod +x /app/bin/entrypoint.sh
-ENTRYPOINT ["/app/bin/entrypoint.sh"]
-
 FROM base AS test
 COPY pyproject.toml /app/
 RUN pip install --no-cache-dir pytest pytest-asyncio pytest-mock pytest-cov httpx fakeredis

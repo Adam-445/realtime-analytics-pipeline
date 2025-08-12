@@ -163,6 +163,21 @@ services:
       - analytics_net
 
   # Services
+  cache:
+    build:
+      context: ../../services/cache
+      dockerfile: Dockerfile
+      target: production
+    hostname: cache
+    ports:
+      - "8080:8080"
+    depends_on:
+      - kafka1
+      - redis
+    networks:
+      - analytics_net
+    command: [ "bash", "/app/bin/entrypoint.sh" ]
+    restart: on-failure
   ingestion:
     build:
       context: ../../services/ingestion
@@ -174,6 +189,7 @@ services:
       - kafka1
     networks:
       - analytics_net
+    command: [ "bash", "/app/bin/entrypoint.sh" ]
     restart: on-failure
 
   processing:
@@ -189,6 +205,7 @@ services:
       - taskmanager1
     networks:
       - analytics_net
+    command: [ "bash", "/app/bin/entrypoint.sh" ]
     restart: on-failure
 
   storage:
@@ -206,20 +223,6 @@ services:
       - analytics_net
     restart: unless-stopped
 
-  cache:
-    build:
-      context: ../../services/cache
-      dockerfile: Dockerfile
-      target: production
-    hostname: cache
-    ports:
-      - "8080:8080"
-    depends_on:
-      - kafka1
-      - redis
-    networks:
-      - analytics_net
-    restart: on-failure
 
 volumes:
   clickhouse_data:
