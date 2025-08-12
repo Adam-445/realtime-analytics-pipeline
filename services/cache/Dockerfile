@@ -14,10 +14,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 FROM base AS production
 COPY src/ /app/src/
-COPY bin/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY bin/entrypoint.sh /app/bin/entrypoint.sh
+
 EXPOSE 8080
-ENTRYPOINT ["/entrypoint.sh"]
+
+RUN chmod +x /app/bin/entrypoint.sh
+ENTRYPOINT ["/app/bin/entrypoint.sh"]
 
 FROM base AS test
 COPY pyproject.toml /app/
