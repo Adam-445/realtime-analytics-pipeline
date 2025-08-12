@@ -128,6 +128,15 @@ services:
     networks:
       - analytics_net
 
+  redis:
+    image: redis:8.2-alpine
+    hostname: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - analytics_net
+    restart: unless-stopped
+
   # Monitoring
   prometheus:
     image: prom/prometheus:v3.5.0
@@ -166,7 +175,6 @@ services:
     networks:
       - analytics_net
     restart: on-failure
-    command: [ "bash", "/app/bin/entrypoint.sh" ]
 
   processing:
     build:
@@ -182,7 +190,6 @@ services:
     networks:
       - analytics_net
     restart: on-failure
-    command: [ "bash", "/app/bin/entrypoint.sh" ]
 
   storage:
     build:
@@ -199,19 +206,11 @@ services:
       - analytics_net
     restart: unless-stopped
 
-  redis:
-    image: redis:8.2-alpine
-    hostname: redis
-    ports:
-      - "6379:6379"
-    networks:
-      - analytics_net
-    restart: unless-stopped
-
   cache:
     build:
       context: ../../services/cache
       dockerfile: Dockerfile
+      target: production
     hostname: cache
     ports:
       - "8080:8080"

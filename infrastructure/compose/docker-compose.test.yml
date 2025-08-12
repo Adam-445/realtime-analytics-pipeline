@@ -18,6 +18,10 @@ services:
 
   cache:
     env_file: .env.test
+    build:
+      target: test
+    volumes:
+      - ../../coverage-reports/cache:/app/coverage
 
   # Integration and E2E test runner
   test-runner:
