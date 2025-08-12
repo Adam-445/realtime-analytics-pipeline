@@ -25,6 +25,9 @@ FROM base AS production
 COPY src/ /app/src/
 COPY bin/ /app/bin/
 
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+
 # Test stage
 FROM base AS test
 

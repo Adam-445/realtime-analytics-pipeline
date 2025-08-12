@@ -1,16 +1,25 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS base
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
 
-# Install netcat for service readiness checks
-RUN apt-get update && apt-get install -y --no-install-recommends netcat-openbsd \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    netcat-openbsd \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
-COPY src /app/src
+
+FROM base AS production
+COPY src/ /app/src/
 COPY bin/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 EXPOSE 8080
 ENTRYPOINT ["/entrypoint.sh"]
+
+FROM base AS test
+COPY pyproject.toml /app/
+RUN pip install --no-cache-dir pytest pytest-asyncio pytest-mock pytest-cov httpx fakeredis
+COPY . /app/
