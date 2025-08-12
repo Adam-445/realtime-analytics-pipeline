@@ -88,6 +88,10 @@ function run_unit_tests() {
     echo "================================================================================"
     echo "Running processing service unit tests..."
     docker compose $COMPOSE_FILES $ENV_FILE run --rm processing python -m pytest tests/unit $PYTEST_ARGS
+
+    echo "================================================================================"
+    echo "Running cache service unit tests..."
+    docker compose $COMPOSE_FILES $ENV_FILE run --rm cache python -m pytest tests/unit $PYTEST_ARGS
 }
 
 function run_integration_tests() {
