@@ -11,7 +11,7 @@ INGESTION_REQUESTS = Counter("ingestion_requests_total", "Total API Requests")
 INGESTION_LATENCY = Histogram("ingestion_request_latency_seconds", "Request latency")
 KAFKA_PRODUCER_ERRORS = Counter("kafka_producer_errors_total", "Kafka producer errors")
 
-router = APIRouter()
+router = APIRouter(prefix="/analytics")
 
 
 @router.post(
