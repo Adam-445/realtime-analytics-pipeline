@@ -1,149 +1,475 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
-function print_usage() {
-    echo "Usage: $0 [OPTIONS] [TEST_TYPE]"
-    echo "Run tests for the real-time analytics pipeline"
-    echo ""
-    echo "Options:"
-    echo "  --coverage          Generate coverage report"
-    echo "  --no-cache          Rebuild Docker images"
-    echo "  -v, --verbose       Verbose output"
-    echo "  -h, --help          Show this help message"
-    echo ""
-    echo "Test types:"
-    echo "  unit                Run unit tests (default)"
-    echo "  integration         Run integration tests"
-    echo "  e2e                 Run end-to-end tests"
-    echo "  performance         Run performance tests"
-    echo "  all                 Run all tests"
-    echo ""
-    echo "Examples:"
-    echo "  $0 unit             # Run unit tests"
-    echo "  $0 --coverage all   # Run all tests with coverage"
-}
+# --- Configuration & Constatnts ---
 
-# Default values
-TEST_TYPE="unit"
-COVERAGE=false
-VERBOSE=false
-BUILD_FLAGS=""
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_ROOT="$SCRIPT_DIR"
 
-# Parse arguments
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        unit|integration|e2e|performance|all)
-            TEST_TYPE=$1
-            ;;
-        --coverage)
-            COVERAGE=true
-            ;;
-        --no-cache)
-            BUILD_FLAGS="--no-cache"
-            ;;
-        -v|--verbose)
-            VERBOSE=true
-            ;;
-        -h|--help)
-            print_usage
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1"
-            print_usage
-            exit 1
-            ;;
-    esac
-    shift
-done
+# Valid services (single source of truth)
+readonly VALID_SERVICES=(cache ingestion processing storage)
+readonly DEFAULT_SERVICES=(cache ingestion processing storage)
 
 # Docker compose configuration
-COMPOSE_FILES="-f infrastructure/compose/docker-compose.yml -f infrastructure/compose/docker-compose.test.yml"
-ENV_FILE="--env-file infrastructure/compose/.env.test"
+readonly COMPOSE_FILES="-f infrastructure/compose/docker-compose.yml -f infrastructure/compose/docker-compose.test.yml"
+readonly ENV_FILE="--env-file infrastructure/compose/.env.test"
 
-# Configure pytest arguments
-PYTEST_ARGS=""
-if [ "$VERBOSE" = true ]; then
-    PYTEST_ARGS="$PYTEST_ARGS -v"
-fi
+# Test output formatting
+readonly COLOR_RED='\033[0;31m'
+readonly COLOR_GREEN='\033[0;32m'
+readonly COLOR_YELLOW='\033[1;33m'
+readonly COLOR_BLUE='\033[0;34m'
+readonly COLOR_RESET='\033[0m'
 
-if [ "$COVERAGE" = true ]; then
-    # Create coverage-reports directory if it doesn't exist
+# --- Logging & Output functions ---
+
+log_info() {
+    echo -e "${COLOR_BLUE}[INFO]${COLOR_RESET} $*"
+}
+
+log_success() {
+    echo -e "${COLOR_GREEN}[SUCCESS]${COLOR_RESET} $*"
+}
+
+log_warning() {
+    echo -e "${COLOR_YELLOW}[WARNING]${COLOR_RESET} $*"
+}
+
+log_error() {
+    echo -e "${COLOR_RED}[ERROR]${COLOR_RESET} $*" >&2
+}
+
+print_separator() {
+    echo "================================================================================"
+}
+
+print_test_header() {
+    local service="$1"
+    print_separator
+    log_info "Running $service service unit tests..."
+}
+
+# --- Validation functions ----
+validate_service() {
+    local service="$1"
+
+    if [[ -z "$service" ]]; then
+        return 0 # Empty service is valid
+    fi
+
+    for valid_service in "${VALID_SERVICES[@]}"; do
+        if [[ "$service" == "$valid_service" ]]; then
+            return 0
+        fi
+    done
+
+    log_error "Invalid service '$service'. Valid services: ${VALID_SERVICES[*]}"
+    return 1
+}
+
+check_prerequisites() {
+    log_info "Checking prerequisites..."
+    
+    if ! command -v docker &> /dev/null; then
+        log_error "Docker is not installed or not in PATH"
+        return 1
+    fi
+    
+    if ! docker compose version &> /dev/null; then
+        log_error "Docker Compose is not available"
+        return 1
+    fi
+    
+    if [[ ! -f "infrastructure/compose/docker-compose.yml" ]]; then
+        log_error "Docker compose file not found. Are you in the project root?"
+        return 1
+    fi
+    
+    log_success "Prerequisites check passed"
+}
+
+validate_environment() {
+    local service="$1"
+    
+    validate_service "$service" || return 1
+    check_prerequisites || return 1
+    
+    return 0
+}
+
+# --- Coverage config ---
+
+setup_coverage_directories() {
+    local services=("$@")
+    
+    log_info "Setting up coverage directories..."
+    
+    # Create base coverage directory
     mkdir -p coverage-reports
-    PYTEST_ARGS="$PYTEST_ARGS --cov=src --cov-report=term-missing --cov-report=html:coverage-reports/htmlcov"
-fi
-
-function run_unit_tests() {
-    echo "Running unit tests in service containers..."
     
-    # Build test images
-    echo "Building test images..."
-    docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS ingestion processing storage cache
+    # Create service-specific directories
+    for service in "${services[@]}"; do
+        mkdir -p "coverage-reports/$service"
+        log_info "Created coverage directory for $service"
+    done
+}
+
+get_coverage_args() {
+    local service="$1"
     
-    echo "================================================================================"
-    echo "Running ingestion service unit tests..."
-    docker compose $COMPOSE_FILES $ENV_FILE run --rm ingestion python -m pytest tests/unit $PYTEST_ARGS
+    if [[ "$COVERAGE" != true ]]; then
+        echo ""
+        return
+    fi
     
-    echo "================================================================================"
-    echo "Running processing service unit tests..."
-    docker compose $COMPOSE_FILES $ENV_FILE run --rm processing python -m pytest tests/unit $PYTEST_ARGS
-
-    echo "================================================================================"
-    echo "Running cache service unit tests..."
-    docker compose $COMPOSE_FILES $ENV_FILE run --rm cache python -m pytest tests/unit $PYTEST_ARGS
+    local base_args="--cov=src --cov-report=term-missing"
+    local html_report="--cov-report=html:coverage-reports/$service/htmlcov"
+    local xml_report="--cov-report=xml:coverage-reports/$service/coverage.xml"
+    
+    echo "$base_args $html_report $xml_report"
 }
 
-function run_integration_tests() {
-    echo "Running integration tests..."
-    docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS test-runner
-    docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest integration $PYTEST_ARGS"
+get_volume_mounts() {
+    local service="$1"
+    
+    if [[ "$COVERAGE" != true ]]; then
+        echo ""
+        return
+    fi
+    
+    local host_path="$(pwd)/coverage-reports/$service"
+    local container_path="/app/coverage-reports/$service"
+    
+    echo "-v $host_path:$container_path"
 }
 
-function run_e2e_tests() {
-    echo "Running end-to-end tests..."
-    docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS
-    docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest e2e $PYTEST_ARGS"
+# --- Service Management ---
+
+determine_services_to_test() {
+    local service="$1"
+    
+    if [[ -n "$service" ]]; then
+        echo "$service"
+    else
+        echo "${DEFAULT_SERVICES[*]}"
+    fi
 }
 
-function run_performance_tests() {
-    echo "Running performance tests..."
-    docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS test-runner
-    docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest performance $PYTEST_ARGS"
+build_service_images() {
+    local services=("$@")
+    
+    log_info "Building test images for services: ${services[*]}"
+    
+    if ! docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS "${services[@]}"; then
+        log_error "Failed to build service images"
+        return 1
+    fi
+    
+    log_success "Service images built successfully"
 }
 
-function cleanup() {
-    echo "Cleaning up test environment..."
+# --- Test Execution ---
+
+run_single_service_test() {
+    local service="$1"
+    local pytest_args="$2"
+    
+    print_test_header "$service"
+    
+    # Prepare Docker command components
+    local volume_mounts
+    volume_mounts=$(get_volume_mounts "$service")
+    
+    local docker_cmd="docker compose $COMPOSE_FILES $ENV_FILE run --rm"
+    
+    # Add volume mounts if coverage is enabled
+    if [[ -n "$volume_mounts" ]]; then
+        docker_cmd="$docker_cmd $volume_mounts"
+    fi
+    
+    # Add service and test command
+    docker_cmd="$docker_cmd $service python -m pytest tests/unit $pytest_args"
+    
+    # Execute the test
+    if eval "$docker_cmd"; then
+        log_success "Tests passed for $service service"
+        return 0
+    else
+        log_error "Tests failed for $service service"
+        return 1
+    fi
+}
+
+run_unit_tests() {
+    log_info "Starting unit test execution..."
+
+    # Determine which services to test
+    local services_string
+    services_string=$(determine_services_to_test "$SERVICE")
+    read -ra SERVICES <<< "$services_string"
+
+    if [[ ${#SERVICES[@]} -eq 1 && -n "$SERVICE" ]]; then
+        log_info "Running tests for service: $SERVICE"
+    else
+        log_info "Running tests for all service: ${SERVICES[*]}"
+    fi
+
+    # Setup coverage if enabled
+    if [[ "$COVERAGE" == true ]]; then
+        setup_coverage_directories "${SERVICES[@]}"
+    fi
+
+    # Build service images
+    build_service_images "${SERVICES[@]}" || return 1
+
+    # Run tests for each service
+    local failed_services=()
+
+    for service in "${SERVICES[@]}"; do
+        local coverage_args
+        coverage_args=$(get_coverage_args "$service")
+        local pytest_args="$PYTEST_ARGS $coverage_args"
+
+        if ! run_single_service_test "$service" "$pytest_args"; then
+            failed_services+=("$service")
+        fi
+    done
+
+    # Report results
+    if [[ ${#failed_services[@]} -gt 0 ]]; then
+        log_error "Tests failed for services: ${failed_services[*]}"
+        return 1
+    fi
+
+    log_success "All unit tests completed successfully"
+    return 0
+}
+
+run_integration_tests() {
+    log_info "Running integration tests..."
+    
+    if ! docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS test-runner; then
+        log_error "Failed to build test-runner image"
+        return 1
+    fi
+    
+    if ! docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest integration $PYTEST_ARGS"; then
+        log_error "Integration tests failed"
+        return 1
+    fi
+    
+    log_success "Integration tests completed successfully!"
+}
+
+run_e2e_tests() {
+    log_info "Running end-to-end tests..."
+    
+    if ! docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS; then
+        log_error "Failed to build images for e2e tests"
+        return 1
+    fi
+    
+    if ! docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest e2e $PYTEST_ARGS"; then
+        log_error "End-to-end tests failed"
+        return 1
+    fi
+    
+    log_success "End-to-end tests completed successfully!"
+}
+
+run_performance_tests() {
+    log_info "Running performance tests..."
+    
+    if ! docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS test-runner; then
+        log_error "Failed to build test-runner image"
+        return 1
+    fi
+    
+    if ! docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest performance $PYTEST_ARGS"; then
+        log_error "Performance tests failed"
+        return 1
+    fi
+    
+    log_success "Performance tests completed successfully!"
+}
+
+# --- Cleanup and utilites ---
+
+cleanup() {
+    log_info "Cleaning up test environment..."
     docker compose $COMPOSE_FILES $ENV_FILE down -v 2>/dev/null || true
 }
 
-# Set up cleanup trap
-trap cleanup EXIT
+print_final_summary() {
+    local start_time="$1"
+    local end_time
+    end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    local minutes=$((duration / 60))
+    local seconds=$((duration % 60))
+    
+    echo ""
+    print_separator
+    log_success "Tests completed successfully!"
+    log_info "Test Summary:"
+    log_info "   - Test Type: $TEST_TYPE"
+    log_info "   - Duration: ${minutes}m ${seconds}s"
+    
+    if [[ -n "$SERVICE" ]]; then
+        log_info "   - Service: $SERVICE"
+    fi
+    
+    if [[ "$COVERAGE" == true ]]; then
+        log_info "   - Coverage reports available in ./coverage-reports/"
+        log_info "   - Open coverage-reports/[service]/htmlcov/index.html to view HTML reports"
+    fi
+    print_separator
+}
 
-# Run tests based on type
-case $TEST_TYPE in
-    unit)
-        run_unit_tests
-        ;;
-    integration)
-        run_integration_tests
-        ;;
-    e2e)
-        run_e2e_tests
-        ;;
-    performance)
-        run_performance_tests
-        ;;
-    all)
-        run_unit_tests
-        echo ""
-        run_integration_tests
-        echo ""
-        run_e2e_tests
-        ;;
-esac
+# --- Argument parsing and help ---
 
-echo "Tests completed successfully!"
-if [ "$COVERAGE" = true ]; then
-    echo "Coverage reports available in ./coverage-reports/"
+print_usage() {
+    cat << EOF
+Usage: $0 [OPTIONS] [TEST_TYPE]
+Run tests for the real-time analytics pipeline
+
+Options:
+  --service=NAME      Run tests only for specified service (${VALID_SERVICES[*]})
+  --coverage          Generate coverage report with HTML and XML output
+  --no-cache          Rebuild Docker images without using cache
+  -v, --verbose       Verbose pytest output
+  -h, --help          Show this help message
+
+Test types:
+  unit                Run unit tests (default)
+  integration         Run integration tests
+  e2e                 Run end-to-end tests
+  performance         Run performance tests
+  all                 Run all test types
+
+Examples:
+  $0 unit                              # Run unit tests for all services
+  $0 --service=cache unit              # Run unit tests for cache service only
+  $0 --coverage --verbose all          # Run all tests with coverage and verbose output
+  $0 --service=processing --coverage   # Run processing tests with coverage
+  $0 --no-cache e2e                   # Force rebuild and run e2e tests
+
+Coverage Output:
+  When --coverage is used, reports are generated in ./coverage-reports/
+  - HTML reports: coverage-reports/[service]/htmlcov/index.html
+  - XML reports: coverage-reports/[service]/coverage.xml
+EOF
+}
+
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --service=*)
+                SERVICE="${1#*=}"
+                ;;
+            --service)
+                SERVICE="$2"
+                shift
+                ;;
+            unit|integration|e2e|performance|all)
+                TEST_TYPE="$1"
+                ;;
+            --coverage)
+                COVERAGE=true
+                ;;
+            --no-cache)
+                BUILD_FLAGS="--no-cache"
+                ;;
+            -v|--verbose)
+                VERBOSE=true
+                ;;
+            -h|--help)
+                print_usage
+                exit 0
+                ;;
+            *)
+                log_error "Unknown option: $1"
+                echo ""
+                print_usage
+                exit 1
+                ;;
+        esac
+        shift
+    done
+}
+
+# --- Main execution ---
+
+main() {
+    local start_time
+    start_time=$(date +%s)
+    
+    # Set up cleanup trap
+    trap cleanup EXIT
+    
+    # Default values
+    local TEST_TYPE="unit"
+    local SERVICE=""
+    local COVERAGE=false
+    local VERBOSE=false
+    local BUILD_FLAGS=""
+    
+    # Parse command line arguments
+    parse_arguments "$@"
+    
+    # Configure pytest arguments
+    local PYTEST_ARGS=""
+    if [[ "$VERBOSE" == true ]]; then
+        PYTEST_ARGS="$PYTEST_ARGS -v"
+    fi
+    
+    # Validate environment and arguments
+    validate_environment "$SERVICE" || exit 1
+    
+    # Print execution info
+    log_info "Starting test execution"
+    log_info "Test type: $TEST_TYPE"
+    if [[ -n "$SERVICE" ]]; then
+        log_info "Service: $SERVICE"
+    fi
+    if [[ "$COVERAGE" == true ]]; then
+        log_info "Coverage: enabled"
+    fi
+    
+    # Execute tests based on type
+    case "$TEST_TYPE" in
+        unit)
+            run_unit_tests || exit 1
+            ;;
+        integration)
+            run_integration_tests || exit 1
+            ;;
+        e2e)
+            run_e2e_tests || exit 1
+            ;;
+        performance)
+            run_performance_tests || exit 1
+            ;;
+        all)
+            run_unit_tests || exit 1
+            echo ""
+            run_integration_tests || exit 1
+            echo ""
+            run_e2e_tests || exit 1
+            ;;
+        *)
+            log_error "Unknown test type: $TEST_TYPE"
+            exit 1
+            ;;
+    esac
+    
+    # Print final summary
+    print_final_summary "$start_time"
+}
+
+
+# Only run main if script is executed directly (not sourced)
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
 fi
