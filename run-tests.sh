@@ -281,12 +281,61 @@ run_e2e_tests() {
 run_performance_tests() {
     log_info "Running performance tests..."
     
-    if ! docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS test-runner; then
-        log_error "Failed to build test-runner image"
+    # Build all images to pick up latest code for services used in perf runs
+    if ! docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS; then
+        log_error "Failed to build images for performance tests"
         return 1
     fi
     
-    if ! docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest performance $PYTEST_ARGS"; then
+    # Determine scenario target
+    local target_path="performance"
+    case "${PERF_SCENARIO:-all}" in
+        throughput)
+            target_path="performance/test_throughput.py"
+            ;;
+        latency)
+            target_path="performance/test_latency.py"
+            ;;
+        all|*)
+            target_path="performance"
+            ;;
+    esac
+
+    # Prepare env vars for perf config
+    local perf_env=""
+    [[ -n "${PERF_RATES:-}" ]] && perf_env+=" -e PERF_RATES=${PERF_RATES}"
+    [[ -n "${PERF_DURATION:-}" ]] && perf_env+=" -e PERF_DURATION=${PERF_DURATION}"
+    [[ -n "${PERF_WARMUP:-}" ]] && perf_env+=" -e PERF_WARMUP=${PERF_WARMUP}"
+    # Ensure event type used by load generator is passed through
+    [[ -n "${PERF_EVENT_TYPE:-}" ]] && perf_env+=" -e PERF_EVENT_TYPE=${PERF_EVENT_TYPE}"
+    [[ -n "${PERF_LATENCY_MAX:-}" ]] && perf_env+=" -e PERF_LATENCY_MAX=${PERF_LATENCY_MAX}"
+    [[ -n "${PERF_MODE:-}" ]] && perf_env+=" -e PERF_MODE=${PERF_MODE}"
+    [[ -n "${PERF_STRICT:-}" ]] && perf_env+=" -e PERF_STRICT=${PERF_STRICT}"
+    [[ -n "${PERF_CONCURRENCY:-}" ]] && perf_env+=" -e PERF_CONCURRENCY=${PERF_CONCURRENCY}"
+    # Endpoint overrides for local/remote targets
+    [[ -n "${PERF_TRACK_URL:-}" ]] && perf_env+=" -e PERF_TRACK_URL=${PERF_TRACK_URL}"
+    [[ -n "${PERF_CACHE_URL:-}" ]] && perf_env+=" -e PERF_CACHE_URL=${PERF_CACHE_URL}"
+    [[ -n "${PROMETHEUS_URL:-}" ]] && perf_env+=" -e PROMETHEUS_URL=${PROMETHEUS_URL}"
+    # Git metadata for reporting
+    local git_commit
+    local git_branch
+    git_commit=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    git_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+    perf_env+=" -e GIT_COMMIT=${git_commit} -e GIT_BRANCH=${git_branch} -e PERF_SCENARIO=${PERF_SCENARIO:-all}"
+
+    # Default loadgen concurrency if not provided (roughly 25 req/s per worker)
+    if [[ -z "${PERF_CONCURRENCY:-}" && -n "${PERF_RATES:-}" ]]; then
+        local first_rate
+        first_rate=$(echo "${PERF_RATES:-}" | awk -F',' '{print $1}')
+        if [[ -n "$first_rate" ]]; then
+            local calc_workers
+            calc_workers=$(( (first_rate + 24) / 25 ))
+            if [[ "$calc_workers" -gt 400 ]]; then calc_workers=400; fi
+            perf_env+=" -e PERF_CONCURRENCY=${calc_workers}"
+        fi
+    fi
+
+    if ! docker compose $COMPOSE_FILES $ENV_FILE run --rm $perf_env test-runner bash -c "cd /tests && python -m pytest ${target_path} $PYTEST_ARGS"; then
         log_error "Performance tests failed"
         return 1
     fi
@@ -339,6 +388,10 @@ Options:
   --coverage          Generate coverage report with HTML and XML output
   --no-cache          Rebuild Docker images without using cache
   -v, --verbose       Verbose pytest output
+    --scenario=NAME     Performance scenario: throughput|latency|all (perf only)
+    --perf-rates=LIST   Comma-separated rates, e.g. 100,500,1000 (perf only)
+    --perf-duration=N   Test duration seconds per rate (perf only)
+    --perf-warmup=N     Warmup seconds to ignore (perf only)
   -h, --help          Show this help message
 
 Test types:
@@ -354,6 +407,7 @@ Examples:
   $0 --coverage --verbose all          # Run all tests with coverage and verbose output
   $0 --service=processing --coverage   # Run processing tests with coverage
   $0 --no-cache e2e                   # Force rebuild and run e2e tests
+  $0 performance --scenario=throughput --perf-rates=200,500 --perf-duration=45
 
 Coverage Output:
   When --coverage is used, reports are generated in ./coverage-reports/
@@ -380,6 +434,30 @@ parse_arguments() {
                 ;;
             --no-cache)
                 BUILD_FLAGS="--no-cache"
+                ;;
+            --scenario=*)
+                PERF_SCENARIO="${1#*=}"
+                ;;
+            --scenario)
+                PERF_SCENARIO="$2"; shift
+                ;;
+            --perf-rates=*)
+                PERF_RATES="${1#*=}"
+                ;;
+            --perf-rates)
+                PERF_RATES="$2"; shift
+                ;;
+            --perf-duration=*)
+                PERF_DURATION="${1#*=}"
+                ;;
+            --perf-duration)
+                PERF_DURATION="$2"; shift
+                ;;
+            --perf-warmup=*)
+                PERF_WARMUP="${1#*=}"
+                ;;
+            --perf-warmup)
+                PERF_WARMUP="$2"; shift
                 ;;
             -v|--verbose)
                 VERBOSE=true
