@@ -1,5 +1,5 @@
-from core.config import settings
 from pyflink.table import DataTypes, Schema
+from src.core.config import settings
 
 
 def get_event_source_schema():

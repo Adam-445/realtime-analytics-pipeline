@@ -36,10 +36,18 @@ class JobCoordinator:
         table_conf.set_string("table.dml-sync", "false")
         table_conf.set_string("table.exec.sink.upsert-materialize", "none")
 
-        # Mini batch tuning
-        table_conf.set_string("table.exec.mini-batch.enabled", "true")
-        table_conf.set_string("table.exec.mini-batch.allow-latency", "4s")
-        table_conf.set_string("table.exec.mini-batch.size", "999")
+        # Mini batch tuning (configurable)
+        table_conf.set_string(
+            "table.exec.mini-batch.enabled",
+            "true" if settings.table_minibatch_enabled else "false",
+        )
+        table_conf.set_string(
+            "table.exec.mini-batch.allow-latency",
+            f"{settings.table_minibatch_latency_seconds}s",
+        )
+        table_conf.set_string(
+            "table.exec.mini-batch.size", str(settings.table_minibatch_size)
+        )
 
         # Idle timeouts & parallelism
         table_conf.set_string(

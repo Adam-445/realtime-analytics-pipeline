@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     processing_performance_window_size_seconds: int = 300
     processing_session_gap_seconds: int = 1800
 
+    # Table/Planner mini-batch tuning
+    table_minibatch_enabled: bool = True
+    table_minibatch_latency_seconds: int = 4
+    table_minibatch_size: int = 999
+
     # Event filtering
     processing_allowed_event_types: list[str] = [
         "page_view",
