@@ -8,9 +8,13 @@ def send_event(
     event_payload: dict,
     timestamp_override: int | None = None,
     api_url: str = "http://ingestion:8000/v1/analytics/track",
+    retries: int = 10,
+    backoff_seconds: float = 0.5,
+    timeout_seconds: float = 2.0,
 ) -> int:
     """
-    Send a test event to the API endpoint, optionally overriding the timestamp.
+    Send a test event to the API endpoint with simple retry/backoff,
+    optionally overriding the timestamp.
 
     Returns the timestamp used for the event.
     """
@@ -22,11 +26,30 @@ def send_event(
     )
     event_payload.setdefault("timestamp", event_timestamp)
 
-    response = requests.post(api_url, json=event_payload)
-    if response.status_code != 202:
-        raise Exception(f"Event sending failed: {response.status_code}")
+    last_err: Exception | None = None
+    for attempt in range(1, max(1, retries) + 1):
+        try:
+            response = requests.post(
+                api_url, json=event_payload, timeout=timeout_seconds
+            )
+            if response.status_code != 202:
+                # Treat non-202 as retryable for early attempts to ride out startup
+                last_err = Exception(
+                    f"Event sending failed: HTTP {response.status_code}"
+                )
+            else:
+                return event_timestamp
+        except requests.RequestException as e:
+            last_err = e
 
-    return event_timestamp
+        # Backoff if not last attempt
+        if attempt < retries:
+            time.sleep(backoff_seconds)
+        else:
+            break
+
+    # Exhausted retries
+    raise last_err or Exception("Event sending failed after retries")
 
 
 def create_test_event(
