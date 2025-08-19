@@ -14,7 +14,7 @@ def create_topics():
     admin = AdminClient(config)
 
     topics = [
-        NewTopic(topic, num_partitions=3, replication_factor=1) for topic in topics
+        NewTopic(topic, num_partitions=6, replication_factor=1) for topic in topics
     ]
 
     # Only create if doesn't exist

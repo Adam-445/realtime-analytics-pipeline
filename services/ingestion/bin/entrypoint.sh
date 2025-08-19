@@ -21,4 +21,6 @@ wait_for_service "kafka1" "19092" "Kafka"
 echo "[INFO] Launching FastAPI app..."
 exec uvicorn src.main:app \
     --host 0.0.0.0 \
-    --port 8000
+    --port 8000 \
+    --workers "${UVICORN_WORKERS:-1}" \
+    --no-access-log

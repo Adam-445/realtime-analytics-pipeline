@@ -12,9 +12,18 @@ class EventProducer:
             {
                 "bootstrap.servers": settings.kafka_bootstrap_servers,
                 "message.max.bytes": 10_485_760,  # 10 MB
-                "acks": "all",
-                "batch.size": 1_048_576,  # 1MB batches
-                "linger.ms": 20,  # Wait up to 20ms for batching
+                "acks": "1",  # Fastest while ensuring leader persistence
+                "batch.size": 262_144,  # 256KB - optimal for high throughput
+                "linger.ms": 0,  # No batching delay - maximum speed
+                "compression.type": "lz4",  # Fastest compression
+                "retry.backoff.ms": 50,  # Faster retries
+                "request.timeout.ms": 10000,  # Reduced timeout
+                "delivery.timeout.ms": 30000,
+                "max.in.flight.requests.per.connection": 100,  # Increased parallelism
+                "enable.idempotence": False,  # Disable for max performance
+                "retries": 3,  # Reduce retry attempts
+                "queue.buffering.max.messages": 1000000,  # Large buffer
+                "queue.buffering.max.kbytes": 2097151,  # 2GB-1KB buffer
             }
         )
         self.topic = settings.kafka_topic_events
