@@ -3,10 +3,6 @@ services:
     env_file: .env.test
     build:
       target: test
-    environment:
-      UVICORN_WORKERS: ${UVICORN_WORKERS:-40}
-      UVICORN_BACKLOG: ${UVICORN_BACKLOG:-8192}
-      UVICORN_KEEP_ALIVE: ${UVICORN_KEEP_ALIVE:-300}
     volumes:
       - ../../coverage-reports/ingestion:/app/coverage
 
