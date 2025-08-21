@@ -26,7 +26,7 @@ async def track_event(
     logger = get_logger("api.track")
     start_time = time.time()
 
-    logger.info(
+    logger.debug(
         "Received analytics event",
         extra={
             "event_id": str(event.event.id),
@@ -39,7 +39,7 @@ async def track_event(
     INGESTION_REQUESTS.inc()
     try:
         await producer.send_event(event)
-        logger.info(
+        logger.debug(
             "Event processed successfully",
             extra={
                 "processing_time": time.time() - start_time,

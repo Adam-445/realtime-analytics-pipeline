@@ -7,9 +7,7 @@ logger = get_logger("kafka.admin")
 
 def create_topics():
     topics = [settings.kafka_topic_events] + settings.kafka_consumer_topics
-    logger.info(
-        "Creating Kafka topics", extra={"topics": settings.kafka_consumer_topics}
-    )
+    logger.info("Creating Kafka topics", extra={"topics": topics})
     config = {"bootstrap.servers": settings.kafka_bootstrap_servers}
     admin = AdminClient(config)
 
