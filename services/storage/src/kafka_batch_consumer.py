@@ -58,5 +58,9 @@ class KafkaBatchConsumer:
 
         return results
 
+    # New preferred name; keep backward compatibility
+    def poll_batch(self) -> dict[str, list]:  # pragma: no cover - thin wrapper
+        return self.consume_batch()
+
     def commit(self):
         self.consumer.commit()
