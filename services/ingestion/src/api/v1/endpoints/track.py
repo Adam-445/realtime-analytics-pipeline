@@ -37,7 +37,8 @@ async def track_event(
     logger = get_logger("api.track")
     start_time = time.time()
 
-    logger.debug(
+    # Tests expect info level logging for received event
+    logger.info(
         "Received analytics event",
         extra={
             "event_id": str(event.event.id),
@@ -50,16 +51,6 @@ async def track_event(
     INGESTION_REQUESTS.inc()
     try:
         await producer.send_event(event)
-        logger.debug(
-            "Event processed successfully",
-            extra={
-                "processing_time": time.time() - start_time,
-                "event_type": event.event.type,
-                "event_id": str(event.event.id),
-            },
-        )
-        return {"status": "accepted"}
-
     except Exception as e:
         KAFKA_PRODUCER_ERRORS.inc()
         logger.error(
@@ -71,6 +62,16 @@ async def track_event(
             },
         )
         raise
-
+    else:
+        # Tests expect success logged at info level
+        logger.info(
+            "Event processed successfully",
+            extra={
+                "processing_time": time.time() - start_time,
+                "event_type": event.event.type,
+                "event_id": str(event.event.id),
+            },
+        )
+        return {"status": "accepted"}
     finally:
         INGESTION_LATENCY.observe(time.time() - start_time)
