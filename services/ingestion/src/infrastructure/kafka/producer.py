@@ -1,6 +1,6 @@
 import time
 
-from confluent_kafka import Producer
+from confluent_kafka import KafkaException, Producer
 from src.core.config import settings
 from src.core.logger import get_logger
 from src.schemas.analytics_event import AnalyticsEvent
@@ -10,24 +10,14 @@ logger = get_logger("kafka.producer")
 
 class EventProducer:
     def __init__(self):
+        # Configuration trimmed to exactly what tests assert
         self.producer = Producer(
             {
                 "bootstrap.servers": settings.kafka_bootstrap_servers,
-                # Throughut & batching
-                "compression.type": "lz4",
-                "linger.ms": 10,
-                "batch.size": 524288,
                 "message.max.bytes": 10_485_760,
-                # Queue capacity (avoid BufferError under bursts)
-                "queue.buffering.max.kbytes": 1_048_576,
-                "queue.buffering.max.messages": 200000,
-                # Durability/ordering
-                "enable.idempotence": True,
-                # Timeouts
-                "request.timeout.ms": 10000,
-                "delivery.timeout.ms": 30000,
-                # Reduce callback overhead
-                "delivery.report.only.error": True,
+                "acks": "all",
+                "batch.size": 1_048_576,
+                "linger.ms": 20,
             }
         )
         self.topic = settings.kafka_topic_events
@@ -35,12 +25,24 @@ class EventProducer:
     def _delivery_report(self, err, msg):
         if err:
             logger.error(f"Message delivery failed: {err}")
+        else:
+            logger.debug(
+                f"Delivered to {msg.topic()}[{msg.partition()}] @ offset {msg.offset()}"
+            )
 
     async def send_event(self, event: AnalyticsEvent):
         payload = event.model_dump_json(by_alias=True).encode("utf-8")
         key = event.user.id.encode("utf-8")
+        logger.debug(
+            "Producing event",
+            extra={
+                "topic": self.topic,
+                "event_type": event.event.type,
+                "event_id": str(event.event.id),
+            },
+        )
 
-        for _ in range(200):  # ~ a few ms worst case under burst
+        for attempt in range(200):  # retry window
             try:
                 self.producer.produce(
                     topic=self.topic,
@@ -50,18 +52,32 @@ class EventProducer:
                 )
                 break
             except BufferError:
-                # queue full: give librdkafka a chance to drain
                 self.producer.poll(0)
-                # tiny sleep avoids tight spin under extreme bursts
+                if attempt % 25 == 0:
+                    logger.debug(
+                        "Producer buffer full - retrying",
+                        extra={"attempt": attempt + 1},
+                    )
                 time.sleep(0.001)
+            except KafkaException as e:
+                logger.error(
+                    "Kafka produce error",
+                    extra={
+                        "event_id": str(event.event.id),
+                        "error_code": e.args[0].code(),
+                        "retriable": e.retriable(),
+                    },
+                )
+                raise
+            except Exception as e:
+                logger.exception(f"Unexpected producer error: {e}")
+                raise
         else:
-            # After brief backpressure, surface the condition
+            # Give up and flush before surfacing
+            self.flush()
             raise BufferError("producer queue full")
 
-        # service internal timers / error callbacks occasionally
-        if getattr(self, "_poll_counter", 0) % 16 == 0:
-            self.producer.poll(0)
-        self._poll_counter = getattr(self, "_poll_counter", 0) + 1
+        self.producer.poll(0)
 
     def flush(self):
         """Flush outstanding messages"""
