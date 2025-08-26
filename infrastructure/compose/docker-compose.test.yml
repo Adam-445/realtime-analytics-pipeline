@@ -42,9 +42,9 @@ services:
       kafka1:
         condition: service_healthy
       clickhouse:
-        condition: service_started
+        condition: service_healthy
       ingestion:
-        condition: service_started
+        condition: service_healthy
       processing:
         condition: service_started
       storage:
