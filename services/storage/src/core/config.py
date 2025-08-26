@@ -18,9 +18,19 @@ class Settings(BaseSettings):
     clickhouse_user: str = "admin"
     clickhouse_password: str = "admin"
 
-    # Batching
+    # Batching / performance
     storage_batch_size: int = 1000
-    storage_poll_interval_seconds: int = 30  # Seconds between consumptions
+    storage_poll_interval_seconds: int = 30  # fallback sleep when idle
+    storage_max_workers: int = 10  # reserved for future thread pool sizing
+    storage_max_concurrent_inserts: int = 4
+    storage_adaptive_batching_enabled: bool = False
+    storage_min_batch_size: int = 200
+    storage_max_batch_size: int = 5000
+    storage_target_cycle_seconds: float = 1.5  # desired consume+insert cadence
+    storage_skip_sleep_if_full: bool = True  # skip idle sleep when batch full
+
+    # Health / metrics
+    health_port: int = 8081
 
     # Logging
     app_log_level: str = "INFO"
