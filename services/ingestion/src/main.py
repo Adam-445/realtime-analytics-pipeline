@@ -45,6 +45,6 @@ instrumentator = Instrumentator(
     inprogress_labels=True,
 )
 
-instrumentator.instrument(app).expose(app)
+instrumentator.instrument(app)
 
 app.include_router(api_router, prefix="/v1")
