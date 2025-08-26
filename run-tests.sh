@@ -8,8 +8,8 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$SCRIPT_DIR"
 
 # Valid services (single source of truth)
-readonly VALID_SERVICES=(cache ingestion processing storage)
-readonly DEFAULT_SERVICES=(cache ingestion processing storage)
+readonly VALID_SERVICES=(cache ingestion processing)
+readonly DEFAULT_SERVICES=(cache ingestion processing)
 
 # Docker compose configuration
 readonly COMPOSE_FILES="-f infrastructure/compose/docker-compose.yml -f infrastructure/compose/docker-compose.test.yml"
