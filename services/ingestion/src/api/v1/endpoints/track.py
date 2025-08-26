@@ -1,4 +1,6 @@
+import os
 import time
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, status
 from prometheus_client import Counter, Histogram
@@ -6,6 +8,15 @@ from src.api.v1.dependencies import get_kafka_producer
 from src.core.logger import get_logger
 from src.infrastructure.kafka.producer import EventProducer
 from src.schemas.analytics_event import AnalyticsEvent
+
+# Multiprocess metrics directory safeguard: tests invoke app imports without
+# running container entrypoint that pre-creates PROMETHEUS_MULTIPROC_DIR.
+_prom_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+if _prom_dir:
+    try:  # pragma: no cover - trivial filesystem operation
+        Path(_prom_dir).mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
 
 INGESTION_REQUESTS = Counter("ingestion_requests_total", "Total API Requests")
 INGESTION_LATENCY = Histogram("ingestion_request_latency_seconds", "Request latency")

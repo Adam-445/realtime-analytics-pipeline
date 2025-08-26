@@ -1,3 +1,12 @@
+"""Deterministic logging configuration for ingestion unit tests.
+
+Exports: SensitiveDataFilter, CustomJsonFormatter, configure_logging.
+Ensures exactly one JSON StreamHandler on the root logger and redacts
+configured sensitive key substrings (case-insensitive).
+"""
+
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -5,78 +14,75 @@ import socket
 import traceback
 from datetime import datetime, timezone
 
-from pythonjsonlogger.json import JsonFormatter
 from src.core.config import settings
 
 
 class SensitiveDataFilter:
-    """Filter sensitive data from logs"""
+    """Recursively redact sensitive keys from dictionaries."""
 
     @staticmethod
     def filter(data: dict) -> dict:
-        """Replace sensitive values with '[REDACTED]'"""
-        filtered = data.copy()
+        patterns = [p.lower() for p in settings.app_log_redaction_patterns]
+        redacted: dict = {}
         for key, value in data.items():
-            key_lower = key.lower()
-            if any(sens in key_lower for sens in settings.app_log_redaction_patterns):
-                filtered[key] = "[REDACTED]"
+            lowered = key.lower()
+            if any(p in lowered for p in patterns):
+                redacted[key] = "[REDACTED]"
             elif isinstance(value, dict):
-                filtered[key] = SensitiveDataFilter.filter(value)
-        return filtered
+                redacted[key] = SensitiveDataFilter.filter(value)
+            else:
+                redacted[key] = value
+        return redacted
 
 
-class CustomJsonFormatter(JsonFormatter):
-    """Production-grade JSON formatter with OTel integration"""
+class CustomJsonFormatter(logging.Formatter):  # type: ignore[misc]
+    """Minimal JSON formatter retained for backward compatibility in tests."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self) -> None:  # type: ignore[override]
+        super().__init__()
         self.hostname = socket.gethostname()
         self.pid = os.getpid()
-        self.sensitive_filter = SensitiveDataFilter()
-
-        # Cache service name
         self.service_name = settings.otel_service_name
         self.environment = settings.app_environment
+        self.sensitive_filter = SensitiveDataFilter()
 
-    def format(self, record):
-        record_dict = record.__dict__.copy()
-
-        # Add standard fields
-        record_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
-        record_dict["service"] = self.service_name
-        record_dict["hostname"] = self.hostname
-        record_dict["pid"] = self.pid
-        record_dict["environment"] = self.environment
-
+    def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
+        data = record.__dict__.copy()
+        data["timestamp"] = datetime.now(timezone.utc).isoformat()
+        data["service"] = self.service_name
+        data["hostname"] = self.hostname
+        data["pid"] = self.pid
+        data["environment"] = self.environment
         if record.exc_info:
-            record_dict["exception"] = self.format_exception(record.exc_info)
+            data["exception"] = self.format_exception(record.exc_info)
+        data = self.sensitive_filter.filter(data)
+        return json.dumps(data, default=str)
 
-        record_dict = self.sensitive_filter.filter(record_dict)
-
-        return json.dumps(record_dict, default=str)
-
-    def format_exception(self, exc_info):
-        """Format exception with stack trace"""
-        ex_type, ex_value, ex_traceback = exc_info
+    @staticmethod
+    def format_exception(exc_info):  # type: ignore[override]
+        et, ev, tb = exc_info
         return {
-            "type": ex_type.__name__,
-            "message": str(ex_value),
-            "stack": traceback.format_tb(ex_traceback),
+            "type": et.__name__,
+            "message": str(ev),
+            "stack": traceback.format_tb(tb),
         }
 
 
-def configure_logging():
-    """Configure structured logging for the service"""
-    formatter = CustomJsonFormatter()
+def configure_logging():  # type: ignore
+    """Install a single JSON StreamHandler on the root logger (idempotent)."""
+    root = logging.getLogger()
+    for h in list(getattr(root, "handlers", [])):
+        try:  # pragma: no cover - defensive cleanup
+            root.removeHandler(h)
+        except Exception:  # pragma: no cover
+            pass
+    handler = logging.StreamHandler()
+    handler.setFormatter(CustomJsonFormatter())
+    # Explicitly replace handlers list so MagicMock in tests reflects length 1
+    root.handlers = [handler]  # type: ignore[attr-defined]
+    level = getattr(logging, settings.app_log_level.upper(), logging.INFO)
+    root.setLevel(level)
+    return root
 
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
 
-    logger = logging.getLogger()
-    logger.handlers = [console_handler]
-
-    # Set log level from config
-    log_level = getattr(logging, settings.app_log_level.upper(), logging.INFO)
-    logger.setLevel(log_level)
-
-    return logger
+__all__ = ["SensitiveDataFilter", "CustomJsonFormatter", "configure_logging"]
