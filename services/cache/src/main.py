@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
@@ -7,11 +8,14 @@ from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from src.api.router import api_router
 from src.core.config import settings
-from src.core.logger import get_logger
+from src.core.logger import configure_logging
 from src.infrastructure.kafka.consumer import consume_loop
 from src.infrastructure.redis.repository import CacheRepository
 
-logger = get_logger("cache.main")
+from shared.utils.retry import retry_async
+
+configure_logging()
+logger = logging.getLogger("cache.main")
 
 
 @asynccontextmanager
@@ -49,29 +53,38 @@ app.include_router(api_router)
 
 
 async def _init_redis_with_retry():
-    """Attempt Redis connection with exponential backoff."""
-    delay = 0.5
-    for attempt in range(1, 6):
-        try:
-            r = redis.Redis(
-                host=settings.redis_host,
-                port=settings.redis_port,
-                db=settings.redis_db,
-                decode_responses=True,
-            )
-            await r.ping()
-            logger.info("Redis connected on attempt %d", attempt)
-            return r
-        except Exception as e:  # noqa
-            logger.warning(
-                "Redis connection failed attempt %d: %s (retrying in %.1fs)",
-                attempt,
-                e,
-                delay,
-            )
-            await asyncio.sleep(delay)
-            delay *= 2
-    raise RuntimeError("Could not connect to Redis after retries")
+    async def _connect():
+        r = redis.Redis(
+            host=settings.redis_host,
+            port=settings.redis_port,
+            db=settings.redis_db,
+            decode_responses=True,
+        )
+        await r.ping()
+        return r
+
+    async def _on_retry(
+        attempt: int, exc: BaseException, sleep_for: float
+    ):  # type: ignore[override]
+        logger.warning(
+            "redis_connect_retry",
+            extra={
+                "attempt": attempt,
+                "error": str(exc),
+                "sleep_for": round(sleep_for, 2),
+            },
+        )
+
+    r = await retry_async(
+        _connect,
+        retries=6,
+        base_delay=0.5,
+        max_delay=8.0,
+        jitter=0.2,
+        on_retry=_on_retry,
+    )
+    logger.info("redis_connected")
+    return r
 
 
 @app.get("/metrics")

@@ -3,7 +3,7 @@ import json
 from typing import Any
 
 from aiokafka import AIOKafkaConsumer
-from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from aiokafka.admin import AIOKafkaAdminClient
 from src.core.config import settings
 from src.core.logger import get_logger
 from src.domain.operations import Operation
@@ -65,32 +65,58 @@ async def consume_loop(repo: CacheRepository, app_state: Any) -> None:
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
 
-    async def _ensure_topics():
+    async def _ensure_topics(max_retries: int = 30, initial_delay: int = 5):
         topics = list(settings.cache_kafka_topics)
-        try:
-            admin = AIOKafkaAdminClient(
-                bootstrap_servers=settings.kafka_bootstrap_servers
-            )
-            await admin.start()
+        admin_client = AIOKafkaAdminClient(
+            bootstrap_servers=settings.kafka_bootstrap_servers
+        )
+        await admin_client.start()
+
+        missing_topics = set(topics)  # Ensure missing_topics is always defined
+        for attempt in range(max_retries):
             try:
-                new_topics = [
-                    NewTopic(name=t, num_partitions=1, replication_factor=1)
-                    for t in topics
-                ]
-                await admin.create_topics(new_topics=new_topics, validate_only=False)
-                logger.info("Ensured Kafka topics exist: %s", topics)
-            except Exception as e:
-                # Many errors here are benign: TopicAlreadyExistsError,
-                # autovivification during race, etc.
-                logger.debug(
-                    "Topic creation result: %s (likely benign if already exists)",
-                    e,
+                # Get cluster metadata
+                metadata = await admin_client.list_topics()
+                available_topics = set(metadata)
+                missing_topics = set(topics) - available_topics
+
+                if not missing_topics:
+                    logger.info(
+                        "all topics available",
+                        extra={"topics": topics, "attempt": attempt},
+                    )
+                    return True
+
+                logger.warning(
+                    "missing topics",
+                    extra={
+                        "missing_topics": list(missing_topics),
+                        "attempt": attempt,
+                        "max_retries": max_retries,
+                    },
                 )
-            finally:
-                await admin.close()
-        except Exception as e:
-            # Don't fail startup; consumer will still retry
-            logger.debug("Kafka admin ensure_topics skipped due to error: %s", e)
+                # Exponential backoff with jitter
+                delay = min(initial_delay * (2**attempt), 60)  # Cap at 60 seconds
+                await asyncio.sleep(delay)
+
+            except Exception as e:
+                logger.warning(
+                    "topic check error", extra={"attempt": attempt, "error": str(e)}
+                )
+                await asyncio.sleep(initial_delay)
+
+        # If we fall through, we failed
+        logger.error(
+            "topics unavailable after_retries",
+            extra={
+                "required_topics": topics,
+                "missing_topics": list(missing_topics),
+                "max_retries": max_retries,
+            },
+        )
+        raise Exception(
+            f"Topics not available after {max_retries} attempts: {missing_topics}"
+        )
 
     await start_consumer_with_retries(consumer, _ensure_topics)
     first = True
