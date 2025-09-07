@@ -1,15 +1,15 @@
 from pydantic_settings import BaseSettings
 
-from shared.constants import topics as topic_consts
+from shared.constants import Topics
 
 
 class Settings(BaseSettings):
     kafka_bootstrap_servers: str = "kafka1:19092"
-    kafka_topic_events: str = topic_consts.EVENTS_TOPIC
-    kafka_topic_event_metrics: str = topic_consts.EVENT_METRICS_TOPIC
-    kafka_topic_session_metrics: str = topic_consts.SESSION_METRICS_TOPIC
-    kafka_topic_performance_metrics: str = topic_consts.PERFORMANCE_METRICS_TOPIC
-    kafka_consumer_topics: list[str] = topic_consts.ALL_METRIC_TOPICS
+    kafka_topic_events: str = Topics.EVENTS
+    kafka_topic_event_metrics: str = Topics.EVENT_METRICS
+    kafka_topic_session_metrics: str = Topics.SESSION_METRICS
+    kafka_topic_performance_metrics: str = Topics.PERFORMANCE_METRICS
+    kafka_consumer_topics: list[str] = Topics.all_metrics_topics()
     kafka_topic_partitions: int = 6
     otel_service_name: str = "ingestion"
     app_environment: str = "production"

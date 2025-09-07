@@ -1,11 +1,19 @@
-# Central topic name definitions
-EVENTS_TOPIC = "analytics_events"
-EVENT_METRICS_TOPIC = "event_metrics"
-SESSION_METRICS_TOPIC = "session_metrics"
-PERFORMANCE_METRICS_TOPIC = "performance_metrics"
+class Topics:
+    """Centralised Kafka topic definitions"""
 
-ALL_METRIC_TOPICS = [
-    EVENT_METRICS_TOPIC,
-    SESSION_METRICS_TOPIC,
-    PERFORMANCE_METRICS_TOPIC,
-]
+    # Core topics
+    EVENTS = "analytics_events"
+
+    # Metric topics
+    EVENT_METRICS = "event_metrics"
+    SESSION_METRICS = "session_metrics"
+    PERFORMANCE_METRICS = "performance_metrics"
+
+    @classmethod
+    def all_metrics_topics(cls) -> list[str]:
+        """Get all metric topics"""
+        return [cls.EVENT_METRICS, cls.SESSION_METRICS, cls.PERFORMANCE_METRICS]
+
+    @classmethod
+    def all_topics(cls) -> list[str]:
+        return [cls.EVENTS] + cls.all_metrics_topics()

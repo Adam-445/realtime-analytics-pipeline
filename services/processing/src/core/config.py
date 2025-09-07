@@ -1,27 +1,15 @@
 from pydantic_settings import BaseSettings
 
-# Shared topic constants (with fallback for legacy environments)
-try:  # pragma: no cover
-    from shared.constants.topics import (
-        EVENT_METRICS_TOPIC,
-        EVENTS_TOPIC,
-        PERFORMANCE_METRICS_TOPIC,
-        SESSION_METRICS_TOPIC,
-    )
-except Exception:  # noqa: pragma: no cover
-    EVENTS_TOPIC = "analytics_events"  # type: ignore
-    EVENT_METRICS_TOPIC = "event_metrics"  # type: ignore
-    SESSION_METRICS_TOPIC = "session_metrics"  # type: ignore
-    PERFORMANCE_METRICS_TOPIC = "performance_metrics"  # type: ignore
+from shared.constants import Topics
 
 
 class Settings(BaseSettings):
     # Kafka settings
     kafka_bootstrap_servers: str = "kafka1:19092"
-    kafka_topic_events: str = EVENTS_TOPIC
-    kafka_topic_event_metrics: str = EVENT_METRICS_TOPIC
-    kafka_topic_session_metrics: str = SESSION_METRICS_TOPIC
-    kafka_topic_performance_metrics: str = PERFORMANCE_METRICS_TOPIC
+    kafka_topic_events: str = Topics.EVENTS
+    kafka_topic_event_metrics: str = Topics.EVENT_METRICS
+    kafka_topic_session_metrics: str = Topics.SESSION_METRICS
+    kafka_topic_performance_metrics: str = Topics.PERFORMANCE_METRICS
     processing_kafka_consumer_group: str = "flink-analytics-group"
     processing_kafka_scan_startup_mode: str = "earliest-offset"
 

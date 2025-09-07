@@ -1,14 +1,12 @@
 from pydantic_settings import BaseSettings
 
+from shared.constants import Topics
+
 
 class Settings(BaseSettings):
     # Kafka
     kafka_bootstrap_servers: str = "kafka1:19092"
-    kafka_consumer_topics: list[str] = [
-        "event_metrics",
-        "session_metrics",
-        "performance_metrics",
-    ]
+    kafka_consumer_topics: list[str] = Topics.all_metrics_topics()
     storage_kafka_consumer_group: str = "clickhouse-storage"
 
     # Clickhouse

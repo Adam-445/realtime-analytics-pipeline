@@ -1,26 +1,15 @@
 from pydantic_settings import BaseSettings
 
-# Shared topic constants
-try:  # pragma: no cover - defensive import
-    from shared.constants.topics import (
-        EVENT_METRICS_TOPIC,
-        PERFORMANCE_METRICS_TOPIC,
-        SESSION_METRICS_TOPIC,
-    )
-except Exception:  # noqa: pragma: no cover
-    # Fallback to literals if shared package not mounted (e.g., legacy env)
-    EVENT_METRICS_TOPIC = "event_metrics"  # type: ignore
-    PERFORMANCE_METRICS_TOPIC = "performance_metrics"  # type: ignore
-    SESSION_METRICS_TOPIC = "session_metrics"  # type: ignore
+from shared.constants import Topics
 
 
 class Settings(BaseSettings):
     # Kafka
     kafka_bootstrap_servers: str = "kafka1:19092"
     cache_kafka_topics: list[str] = [
-        EVENT_METRICS_TOPIC,
-        # SESSION_METRICS_TOPIC,  # TODO: add when session caching implemented
-        PERFORMANCE_METRICS_TOPIC,
+        Topics.EVENT_METRICS,
+        # Topics.SESSION_METRICS,  # TODO: add when session caching implemented
+        Topics.PERFORMANCE_METRICS,
     ]
     cache_kafka_consumer_group: str = "cache-service"
     cache_consume_from: str = "latest"  # earliest|latest
