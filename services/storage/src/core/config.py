@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     storage_skip_sleep_if_full: bool = True  # skip idle sleep when batch full
 
     # Health / metrics
-    health_port: int = 8081
+    health_port: int = 8001
 
     # Logging
     app_log_level: str = "INFO"
