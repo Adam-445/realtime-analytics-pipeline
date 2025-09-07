@@ -1,5 +1,7 @@
-EVENT_METRICS_DDL = """
-CREATE TABLE IF NOT EXISTS event_metrics (
+from shared.constants.topics import Topics
+
+EVENT_METRICS_DDL = f"""
+CREATE TABLE IF NOT EXISTS {Topics.EVENT_METRICS} (
     window_start DateTime64(3),
     window_end DateTime64(3),
     event_type String,
@@ -9,8 +11,8 @@ CREATE TABLE IF NOT EXISTS event_metrics (
 ORDER BY (window_start, event_type)
 """
 
-SESSION_METRICS_DDL = """
-CREATE TABLE IF NOT EXISTS session_metrics (
+SESSION_METRICS_DDL = f"""
+CREATE TABLE IF NOT EXISTS {Topics.SESSION_METRICS} (
     session_id String,
     user_id String,
     start_time DateTime64(3),
@@ -22,8 +24,8 @@ CREATE TABLE IF NOT EXISTS session_metrics (
 ORDER BY (start_time, session_id)
 """
 
-PERFORMANCE_METRICS_DDL = """
-CREATE TABLE IF NOT EXISTS performance_metrics (
+PERFORMANCE_METRICS_DDL = f"""
+CREATE TABLE IF NOT EXISTS {Topics.PERFORMANCE_METRICS} (
     window_start DateTime64(3),
     window_end DateTime64(3),
     device_category String,
