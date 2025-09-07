@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 from redis.asyncio import Redis
 from src.domain.operations import Operation
 
-from . import constants
+from shared.constants import RedisKeys
 
 
 class CacheRepository:
@@ -22,26 +22,26 @@ class CacheRepository:
 
     # Store methods
     async def store_event_window(self, window_start_ms: int, fields: Dict[str, Any]):
-        key = constants.WINDOW_EVENT_HASH.format(window_start=window_start_ms)
+        key = RedisKeys.window_key("event", window_start_ms)
         await self.r.hset(key, mapping=fields)  # type: ignore[arg-type]
         await self.r.expire(key, self.window_hash_ttl)
         await self.r.zadd(
-            constants.WINDOW_EVENT_INDEX,
+            RedisKeys.WINDOW_EVENT_INDEX,
             {str(window_start_ms): window_start_ms},
         )
-        await self._trim_index(constants.WINDOW_EVENT_INDEX)
+        await self._trim_index(RedisKeys.WINDOW_EVENT_INDEX)
 
     async def store_performance_window(
         self, window_start_ms: int, fields: Dict[str, Any]
     ):
-        key = constants.WINDOW_PERF_HASH.format(window_start=window_start_ms)
+        key = RedisKeys.window_key("performance", window_start_ms)
         await self.r.hset(key, mapping=fields)  # type: ignore[arg-type]
         await self.r.expire(key, self.window_hash_ttl)
         await self.r.zadd(
-            constants.WINDOW_PERF_INDEX,
+            RedisKeys.WINDOW_PERF_INDEX,
             {str(window_start_ms): window_start_ms},
         )
-        await self._trim_index(constants.WINDOW_PERF_INDEX)
+        await self._trim_index(RedisKeys.WINDOW_PERF_INDEX)
 
     # Batch / Pipeline
     async def pipeline_apply(self, ops: List[Operation]):
@@ -58,30 +58,30 @@ class CacheRepository:
             w = op["window_start"]
             if op["type"] == "event":
                 saw_event = True
-                key = constants.WINDOW_EVENT_HASH.format(window_start=w)
+                key = RedisKeys.window_key("event", w)
                 pipe.hset(key, mapping=op["fields"])  # type: ignore[arg-type]
                 pipe.expire(key, self.window_hash_ttl)
-                pipe.zadd(constants.WINDOW_EVENT_INDEX, {str(w): w})
+                pipe.zadd(RedisKeys.WINDOW_EVENT_INDEX, {str(w): w})
             elif op["type"] == "perf":
                 saw_perf = True
-                key = constants.WINDOW_PERF_HASH.format(window_start=w)
+                key = RedisKeys.window_key("performance", w)
                 pipe.hset(key, mapping=op["fields"])  # type: ignore[arg-type]
                 pipe.expire(key, self.window_hash_ttl)
-                pipe.zadd(constants.WINDOW_PERF_INDEX, {str(w): w})
+                pipe.zadd(RedisKeys.WINDOW_PERF_INDEX, {str(w): w})
         # Execute writes
         await pipe.execute()
         # Trim only indices that were touched in this batch
         if saw_event:
-            await self._trim_index(constants.WINDOW_EVENT_INDEX)
+            await self._trim_index(RedisKeys.WINDOW_EVENT_INDEX)
         if saw_perf:
-            await self._trim_index(constants.WINDOW_PERF_INDEX)
+            await self._trim_index(RedisKeys.WINDOW_PERF_INDEX)
 
     # Retrieval
     async def get_latest_event_window(self) -> Optional[Dict[str, Any]]:
-        ids = await self.r.zrevrange(constants.WINDOW_EVENT_INDEX, 0, 0)
+        ids = await self.r.zrevrange(RedisKeys.WINDOW_EVENT_INDEX, 0, 0)
         if not ids:
             return None
-        key = constants.WINDOW_EVENT_HASH.format(window_start=ids[0])
+        key = RedisKeys.WINDOW_EVENT_HASH.format(window_start=ids[0])
         data = await self.r.hgetall(key)  # type: ignore[func-returns-value]
         if not data:
             return None
@@ -89,15 +89,15 @@ class CacheRepository:
 
     async def get_last_event_windows(self, limit: int) -> List[Dict[str, Any]]:
         return await self._get_last_windows(
-            constants.WINDOW_EVENT_INDEX,
-            constants.WINDOW_EVENT_HASH,
+            RedisKeys.WINDOW_EVENT_INDEX,
+            RedisKeys.WINDOW_EVENT_HASH,
             limit,
         )
 
     async def get_last_performance_windows(self, limit: int) -> List[Dict[str, Any]]:
         return await self._get_last_windows(
-            constants.WINDOW_PERF_INDEX,
-            constants.WINDOW_PERF_HASH,
+            RedisKeys.WINDOW_PERF_INDEX,
+            RedisKeys.WINDOW_PERF_HASH,
             limit,
         )
 
@@ -105,7 +105,7 @@ class CacheRepository:
     async def publish_update(self, payload: Dict[str, Any]):
         import json
 
-        await self.r.publish(constants.PUBSUB_CHANNEL_UPDATES, json.dumps(payload))
+        await self.r.publish(RedisKeys.PUBSUB_CHANNEL_UPDATES, json.dumps(payload))
 
     # Internals
     async def _trim_index(self, index_key: str):
