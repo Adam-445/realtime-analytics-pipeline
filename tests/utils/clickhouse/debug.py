@@ -1,3 +1,6 @@
+from shared.constants.topics import Topics
+
+
 def debug_database_state(
     clickhouse_client, print_tables: bool = False, tables: list | None = None
 ):
