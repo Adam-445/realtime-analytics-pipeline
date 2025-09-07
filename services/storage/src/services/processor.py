@@ -10,7 +10,7 @@ from src.core.config import settings
 from src.core.logger import get_logger
 from src.infrastructure.clickhouse.client import ClickHouseClient
 from src.infrastructure.kafka.consumer import KafkaBatchConsumer
-from src.metrics import (
+from src.core.metrics import (
     BATCH_SIZE,
     CONSUME_CYCLE,
     IN_FLIGHT_INSERTS,
@@ -19,6 +19,7 @@ from src.metrics import (
     STORAGE_COMMITS,
     STORAGE_ERRORS,
     STORAGE_RECORDS,
+    STORAGE_RETRIES,
 )
 from src.utils.concurrency import run_blocking
 
@@ -103,7 +104,20 @@ async def process_batches(shutdown_event: asyncio.Event) -> None:
                         insert_start = time.perf_counter()
                         IN_FLIGHT_INSERTS.inc()
                         try:
-                            await _insert_batch(ch_client, topic, batch)
+                            # Simple bounded retry loop with exponential backoff
+                            attempts = 0
+                            max_retries = 3
+                            while True:
+                                try:
+                                    await _insert_batch(ch_client, topic, batch)
+                                    break
+                                except Exception:
+                                    attempts += 1
+                                    STORAGE_RETRIES.inc()
+                                    if attempts >= max_retries:
+                                        raise
+                                    # Exponential backoff with max cap
+                                    await asyncio.sleep(min(0.5 * attempts, 2.0))
                             INSERT_LATENCY.observe(time.perf_counter() - insert_start)
                             STORAGE_BATCHES.inc()
                             STORAGE_RECORDS.inc(len(batch))
