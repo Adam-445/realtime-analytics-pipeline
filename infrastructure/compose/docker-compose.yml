@@ -229,7 +229,7 @@ services:
       context: ../../services/storage
       dockerfile: Dockerfile
     ports:
-      - "8001:8001"
+      - "8001:8001"  
     volumes:
       - ../../services/storage/src:/app/src:ro
       - ../../shared:/app/shared:ro
