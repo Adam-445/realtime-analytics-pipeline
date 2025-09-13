@@ -1,13 +1,5 @@
-"""Processing service logger shim.
+"""Processing service logger - re-exports shared logger utility."""
 
-Retained for backward compatibility; delegates to standard logging after
-shared configure_logging is invoked in main entrypoint.
-"""
+from shared.logging.logger import get_logger
 
-from __future__ import annotations
-
-import logging
-
-
-def get_logger(name: str) -> logging.Logger:  # type: ignore
-    return logging.getLogger(name)
+__all__ = ["get_logger"]
