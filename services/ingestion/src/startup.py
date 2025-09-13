@@ -1,7 +1,11 @@
 from src.core.config import settings
 from src.core.logger import get_logger
-from src.core.logging_config import configure_logging  # local compatibility shim
 from src.infrastructure.kafka.admin import create_topics
+
+try:
+    from shared.logging.json import configure_logging as shared_configure_logging
+except ImportError:
+    shared_configure_logging = None
 
 logger = get_logger("startup")
 
@@ -12,8 +16,14 @@ def initialize_application():
     Order preserved for legacy unit tests: configure_logging -> create_topics.
     """
     logger.info("Starting application initialization")
-    # Local configure_logging has no parameters (legacy signature expected by tests)
-    configure_logging()
+    # Configure logging using shared implementation
+    if shared_configure_logging:
+        shared_configure_logging(
+            service=settings.otel_service_name,
+            level=settings.app_log_level,
+            environment=settings.app_environment,
+            redaction_patterns=settings.app_log_redaction_patterns,
+        )
     create_topics()
     logger.info(
         "Application initialization complete",
