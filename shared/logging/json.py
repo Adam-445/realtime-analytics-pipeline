@@ -80,6 +80,15 @@ def configure_logging(
     root = logging.getLogger()
     root.handlers = [handler]  # deterministic single handler
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
+
+    # Mark logger as configured for shared logger utility
+    try:
+        from shared.logging.logger import mark_configured
+
+        mark_configured()
+    except ImportError:
+        pass  # shared logger not available
+
     return root
 
 
