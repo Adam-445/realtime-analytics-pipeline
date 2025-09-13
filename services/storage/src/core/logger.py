@@ -1,8 +1,5 @@
-import logging
+"""Storage service logger - re-exports shared logger utility."""
 
+from shared.logging.logger import get_logger
 
-def get_logger(name: str) -> logging.Logger:
-    """Get preconfigured structured logger"""
-    logger = logging.getLogger(name)
-    logger.propagate = True
-    return logger
+__all__ = ["get_logger"]
