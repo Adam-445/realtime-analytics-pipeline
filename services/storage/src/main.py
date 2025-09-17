@@ -1,5 +1,3 @@
-"""Service entrypoint (replaces legacy batch_processor main)."""
-
 from __future__ import annotations
 
 import asyncio

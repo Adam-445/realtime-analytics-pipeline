@@ -1,5 +1,3 @@
-"""Prometheus metrics for storage service (relocated from observability/metrics)."""
-
 from prometheus_client import Counter, Gauge, Histogram
 
 STORAGE_BATCHES = Counter("storage_batches_total", "Total successful batches processed")

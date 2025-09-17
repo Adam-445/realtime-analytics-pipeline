@@ -24,10 +24,15 @@ class EventProducer:
 
     def _delivery_report(self, err, msg):
         if err:
-            logger.error(f"Message delivery failed: {err}")
+            logger.error("kafka_delivery_failed", extra={"error": str(err)})
         else:
             logger.debug(
-                f"Delivered to {msg.topic()}[{msg.partition()}] @ offset {msg.offset()}"
+                "kafka_delivery_success",
+                extra={
+                    "topic": msg.topic(),
+                    "partition": msg.partition(),
+                    "offset": msg.offset(),
+                },
             )
 
     async def send_event(self, event: AnalyticsEvent):
@@ -70,7 +75,7 @@ class EventProducer:
                 )
                 raise
             except Exception as e:
-                logger.exception(f"Unexpected producer error: {e}")
+                logger.exception("producer_unexpected_error", extra={"error": str(e)})
                 raise
         else:
             # Give up and flush before surfacing
@@ -83,4 +88,6 @@ class EventProducer:
         """Flush outstanding messages"""
         remaining = self.producer.flush(timeout=5)
         if remaining > 0:
-            logger.warning(f"{remaining} messages not delivered")
+            logger.warning(
+                "producer_flush_remaining", extra={"remaining_messages": remaining}
+            )

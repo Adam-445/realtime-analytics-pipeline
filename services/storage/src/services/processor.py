@@ -1,5 +1,3 @@
-"""Batch processing orchestration (extracted from legacy batch_processor)."""
-
 from __future__ import annotations
 
 import asyncio
@@ -8,8 +6,6 @@ from typing import Any, Dict, List, TypedDict
 
 from src.core.config import settings
 from src.core.logger import get_logger
-from src.infrastructure.clickhouse.client import ClickHouseClient
-from src.infrastructure.kafka.consumer import KafkaBatchConsumer
 from src.core.metrics import (
     BATCH_SIZE,
     CONSUME_CYCLE,
@@ -21,6 +17,8 @@ from src.core.metrics import (
     STORAGE_RECORDS,
     STORAGE_RETRIES,
 )
+from src.infrastructure.clickhouse.client import ClickHouseClient
+from src.infrastructure.kafka.consumer import KafkaBatchConsumer
 from src.utils.concurrency import run_blocking
 
 logger = get_logger("storage.processor")

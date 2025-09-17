@@ -22,7 +22,7 @@ def main():
             redaction_patterns=settings.app_log_redaction_patterns,
         )
     logger = get_logger("main")
-    logger.info("Starting Real-time Analytics Pipeline")
+    logger.info("pipeline_start")
 
     # Initialize coordinator
     coordinator = JobCoordinator()
@@ -34,7 +34,7 @@ def main():
 
     # Execute all jobs
     coordinator.execute()
-    logger.info("Pipeline execution completed")
+    logger.info("pipeline_completed")
 
 
 if __name__ == "__main__":

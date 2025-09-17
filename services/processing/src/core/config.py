@@ -15,7 +15,6 @@ class Settings(BaseSettings):
 
     # Flink settings
     flink_parallelism: int = 2
-    # Checkpoint interval (override with FLINK_CHECKPOINT_INTERVAL_MS in env)
     flink_checkpoint_interval_ms: int = 30000
     flink_watermark_delay_seconds: int = 10
     flink_idle_timeout_seconds: int = 5

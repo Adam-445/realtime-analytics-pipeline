@@ -12,10 +12,7 @@ logger = get_logger("topic_waiter")
 def ensure_topics_available(
     topics: Iterable[str], max_retries: int = 30, initial_delay: int = 5
 ) -> None:
-    """Block until all topics exist or raise after retries.
-
-    Exponential backoff with jitter. Extracted to isolate Kafka Admin usage.
-    """
+    """Block until all topics exist with retry/backoff, else raise."""
     topics = list(topics)
     admin_client = AdminClient({"bootstrap.servers": settings.kafka_bootstrap_servers})
     missing = set(topics)
