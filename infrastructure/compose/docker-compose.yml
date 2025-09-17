@@ -184,6 +184,12 @@ services:
       - ../../shared:/app/shared:ro
     command: [ "bash", "/app/bin/entrypoint.sh" ]
     restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://cache:8080/healthz"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
   ingestion:
     build:
       context: ../../services/ingestion
