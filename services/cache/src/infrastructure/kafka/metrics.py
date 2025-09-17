@@ -1,12 +1,3 @@
-"""
-Prometheus metrics for the cache service Kafka -> Redis ingestion path.
-
-All metric names share the cache_ prefix. Naming conventions:
-  cache_kafka_* for Kafka consumption / commit related metrics
-  cache_redis_* for Redis write pipeline metrics
-  cache_queue_* for internal buffering / backpressure indicators
-"""
-
 from prometheus_client import Counter, Gauge, Histogram
 
 # Kafka consumption

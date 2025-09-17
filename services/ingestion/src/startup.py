@@ -11,12 +11,9 @@ logger = get_logger("startup")
 
 
 def initialize_application():
-    """Initialize application resources.
-
-    Order preserved for legacy unit tests: configure_logging -> create_topics.
-    """
-    logger.info("Starting application initialization")
-    # Configure logging using shared implementation
+    """Initialize logging and ensure Kafka topics (order preserved for tests)."""
+    logger.info("initializing_application")
+    # Configure logging with shared formatter
     if shared_configure_logging:
         shared_configure_logging(
             service=settings.otel_service_name,
@@ -26,7 +23,7 @@ def initialize_application():
         )
     create_topics()
     logger.info(
-        "Application initialization complete",
+        "application_initialized",
         extra={
             "kafka_topics": settings.kafka_consumer_topics,
             "otel_service": settings.otel_service_name,
