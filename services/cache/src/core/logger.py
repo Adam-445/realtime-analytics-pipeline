@@ -1,9 +1,3 @@
-"""Cache service logging shim using shared JSON formatter.
-
-Retains lightweight message redaction while delegating base configuration to
-shared.logging.formatting.configure_logging for consistency across services.
-"""
-
 from __future__ import annotations
 
 import logging

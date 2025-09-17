@@ -28,16 +28,17 @@ async def start_consumer_with_retries(consumer: Any, ensure_topics_cb=None) -> N
                 await ensure_topics_cb()
             await consumer.start()
             logger.info(
-                f"Kafka consumer started for topics {settings.cache_kafka_topics} "
-                f"on attempt {attempt}"
+                "kafka_consumer_started",
+                extra={
+                    "topics": list(settings.cache_kafka_topics),
+                    "attempt": attempt,
+                },
             )
             return
         except Exception as e:  # noqa
             logger.warning(
-                "Kafka consumer start failed attempt %d: %s (retrying in %.1fs)",
-                attempt,
-                e,
-                delay,
+                "kafka_consumer_start_failed",
+                extra={"attempt": attempt, "error": str(e), "retry_in": delay},
             )
             await asyncio.sleep(delay)
             delay = min(delay * 2, 30)
@@ -139,13 +140,13 @@ async def consume_loop(repo: CacheRepository, app_state: Any) -> None:
                 if getattr(app_state, "ready_event", None):
                     app_state.ready_event.set()
     except asyncio.CancelledError:  # graceful cancellation
-        logger.info("consume_loop cancelled")
+        logger.info("consume_loop_cancelled")
         raise
     except Exception as e:  # noqa
-        logger.exception("Fatal error in consume_loop: %s", e)
+        logger.exception("consume_loop_fatal", extra={"error": str(e)})
         raise
     finally:
         stop_event.set()
         await worker_task
         await consumer.stop()
-        logger.info("Kafka consumer stopped")
+        logger.info("kafka_consumer_stopped")
