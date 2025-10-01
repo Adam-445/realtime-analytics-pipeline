@@ -299,8 +299,9 @@ run_performance_tests() {
     [[ -n "${PERF_STRICT:-}" ]] && perf_env+=" -e PERF_STRICT=${PERF_STRICT}"
     [[ -n "${PERF_MAX_ERROR_RATE:-}" ]] && perf_env+=" -e PERF_MAX_ERROR_RATE=${PERF_MAX_ERROR_RATE}"
     # Endpoint overrides for local/remote targets (used by TestConfig)
-    [[ -n "${INGESTION_URL:-}" ]] && perf_env+=" -e INGESTION_URL=${INGESTION_URL}"
-    [[ -n "${CACHE_URL:-}" ]] && perf_env+=" -e CACHE_URL=${CACHE_URL}"
+    # Default to Docker network service names if not provided
+    perf_env+=" -e INGESTION_URL=${INGESTION_URL:-http://ingestion:8000}"
+    perf_env+=" -e CACHE_URL=${CACHE_URL:-http://cache:8080}"
     [[ -n "${PROMETHEUS_URL:-}" ]] && perf_env+=" -e PROMETHEUS_URL=${PROMETHEUS_URL}"
     # Git metadata for reporting
     local git_commit
