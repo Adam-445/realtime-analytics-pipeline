@@ -8,8 +8,8 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$SCRIPT_DIR"
 
 # Valid services (single source of truth)
-readonly VALID_SERVICES=(cache ingestion processing)
-readonly DEFAULT_SERVICES=(cache ingestion processing)
+readonly VALID_SERVICES=(cache ingestion processing storage)
+readonly DEFAULT_SERVICES=(cache ingestion processing storage)
 
 # Docker compose configuration
 readonly COMPOSE_FILES="-f infrastructure/compose/docker-compose.yml -f infrastructure/compose/docker-compose.test.yml"
@@ -287,53 +287,29 @@ run_performance_tests() {
         return 1
     fi
     
-    # Determine scenario target
-    local target_path="performance"
-    case "${PERF_SCENARIO:-all}" in
-        throughput)
-            target_path="performance/test_throughput.py"
-            ;;
-        latency)
-            target_path="performance/test_latency.py"
-            ;;
-        all|*)
-            target_path="performance"
-            ;;
-    esac
+    # Determine scenario target (only throughput for now)
+    local target_path="performance/test_throughput.py"
 
     # Prepare env vars for perf config
     local perf_env=""
-    [[ -n "${PERF_RATES:-}" ]] && perf_env+=" -e PERF_RATES=${PERF_RATES}"
+    # Perf config
+    [[ -n "${PERF_RATES:-}" ]] && perf_env+=" -e PERF_RATES=${PERF_RATES}" || perf_env+=" -e PERF_RATES=50"
     [[ -n "${PERF_DURATION:-}" ]] && perf_env+=" -e PERF_DURATION=${PERF_DURATION}"
     [[ -n "${PERF_WARMUP:-}" ]] && perf_env+=" -e PERF_WARMUP=${PERF_WARMUP}"
-    # Ensure event type used by load generator is passed through
-    [[ -n "${PERF_EVENT_TYPE:-}" ]] && perf_env+=" -e PERF_EVENT_TYPE=${PERF_EVENT_TYPE}"
-    [[ -n "${PERF_LATENCY_MAX:-}" ]] && perf_env+=" -e PERF_LATENCY_MAX=${PERF_LATENCY_MAX}"
-    [[ -n "${PERF_MODE:-}" ]] && perf_env+=" -e PERF_MODE=${PERF_MODE}"
     [[ -n "${PERF_STRICT:-}" ]] && perf_env+=" -e PERF_STRICT=${PERF_STRICT}"
-    [[ -n "${PERF_CONCURRENCY:-}" ]] && perf_env+=" -e PERF_CONCURRENCY=${PERF_CONCURRENCY}"
-    # Endpoint overrides for local/remote targets
-    [[ -n "${PERF_TRACK_URL:-}" ]] && perf_env+=" -e PERF_TRACK_URL=${PERF_TRACK_URL}"
-    [[ -n "${PERF_CACHE_URL:-}" ]] && perf_env+=" -e PERF_CACHE_URL=${PERF_CACHE_URL}"
+    [[ -n "${PERF_MAX_ERROR_RATE:-}" ]] && perf_env+=" -e PERF_MAX_ERROR_RATE=${PERF_MAX_ERROR_RATE}"
+    # Endpoint overrides for local/remote targets (used by TestConfig)
+    [[ -n "${INGESTION_URL:-}" ]] && perf_env+=" -e INGESTION_URL=${INGESTION_URL}"
+    [[ -n "${CACHE_URL:-}" ]] && perf_env+=" -e CACHE_URL=${CACHE_URL}"
     [[ -n "${PROMETHEUS_URL:-}" ]] && perf_env+=" -e PROMETHEUS_URL=${PROMETHEUS_URL}"
     # Git metadata for reporting
     local git_commit
     local git_branch
     git_commit=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
     git_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-    perf_env+=" -e GIT_COMMIT=${git_commit} -e GIT_BRANCH=${git_branch} -e PERF_SCENARIO=${PERF_SCENARIO:-all}"
+    perf_env+=" -e GIT_COMMIT=${git_commit} -e GIT_BRANCH=${git_branch} -e PERF_SCENARIO=throughput"
 
-    # Default loadgen concurrency if not provided (roughly 25 req/s per worker)
-    if [[ -z "${PERF_CONCURRENCY:-}" && -n "${PERF_RATES:-}" ]]; then
-        local first_rate
-        first_rate=$(echo "${PERF_RATES:-}" | awk -F',' '{print $1}')
-        if [[ -n "$first_rate" ]]; then
-            local calc_workers
-            calc_workers=$(( (first_rate + 24) / 25 ))
-            if [[ "$calc_workers" -gt 400 ]]; then calc_workers=400; fi
-            perf_env+=" -e PERF_CONCURRENCY=${calc_workers}"
-        fi
-    fi
+    # Keep concurrency internal to scenario based on target RPS
 
     if ! docker compose $COMPOSE_FILES $ENV_FILE run --rm $perf_env test-runner bash -c "cd /tests && python -m pytest ${target_path} $PYTEST_ARGS"; then
         log_error "Performance tests failed"
