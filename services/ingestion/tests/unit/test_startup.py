@@ -25,10 +25,10 @@ class TestApplicationStartup:
         # Verify logging calls
         assert mock_logger.info.call_count == 2
 
-        # Check log messages
+        # Check log messages match structured message names
         log_calls = [call.args[0] for call in mock_logger.info.call_args_list]
-        assert "Starting application initialization" in log_calls
-        assert "Application initialization complete" in log_calls
+        assert "initializing_application" in log_calls
+        assert "application_initialized" in log_calls
 
     @patch("src.startup.create_topics")
     @patch("src.startup.configure_logging")
@@ -45,7 +45,7 @@ class TestApplicationStartup:
 
         # Verify the completion log includes extra data
         completion_call = mock_logger.info.call_args_list[-1]
-        assert "Application initialization complete" in completion_call.args[0]
+        assert "application_initialized" in completion_call.args[0]
         assert "extra" in completion_call.kwargs
 
         extra_data = completion_call.kwargs["extra"]
@@ -73,7 +73,7 @@ class TestApplicationStartup:
         startup_calls = [
             call
             for call in mock_logger.info.call_args_list
-            if "Starting application initialization" in call.args[0]
+            if "initializing_application" in call.args[0]
         ]
         assert len(startup_calls) == 1
 
@@ -101,7 +101,7 @@ class TestApplicationStartup:
         """Test that initialization steps happen in correct order."""
         call_order = []
 
-        def track_configure_logging():
+        def track_configure_logging(**kwargs):
             call_order.append("configure_logging")
 
         def track_create_topics():

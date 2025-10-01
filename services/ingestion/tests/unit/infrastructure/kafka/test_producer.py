@@ -70,7 +70,8 @@ class TestEventProducer:
             producer._delivery_report(None, mock_msg)
 
             mock_logger.debug.assert_called_once_with(
-                "Delivered to test_topic[0] @ offset 123"
+                "kafka_delivery_success",
+                extra={"topic": "test_topic", "partition": 0, "offset": 123},
             )
 
     def test_delivery_report_error(self):
@@ -82,7 +83,7 @@ class TestEventProducer:
             producer._delivery_report(error, None)
 
             mock_logger.error.assert_called_once_with(
-                f"Message delivery failed: {error}"
+                "kafka_delivery_failed", extra={"error": str(error)}
             )
 
     @patch("src.infrastructure.kafka.producer.settings")
@@ -194,7 +195,7 @@ class TestEventProducer:
 
             # Verify exception was logged
             mock_logger.exception.assert_called_once_with(
-                "Unexpected producer error: Unexpected error"
+                "producer_unexpected_error", extra={"error": "Unexpected error"}
             )
 
     @patch("src.infrastructure.kafka.producer.settings")
@@ -229,4 +230,6 @@ class TestEventProducer:
             producer.flush()
 
             mock_producer.flush.assert_called_once_with(timeout=5)
-            mock_logger.warning.assert_called_once_with("3 messages not delivered")
+            mock_logger.warning.assert_called_once_with(
+                "producer_flush_remaining", extra={"remaining_messages": 3}
+            )

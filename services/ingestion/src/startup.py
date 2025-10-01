@@ -7,6 +7,10 @@ try:
 except ImportError:
     shared_configure_logging = None
 
+# Expose a module-level name for tests that patch src.startup.configure_logging
+# while still delegating to the shared implementation.
+configure_logging = shared_configure_logging
+
 logger = get_logger("startup")
 
 
@@ -14,8 +18,8 @@ def initialize_application():
     """Initialize logging and ensure Kafka topics (order preserved for tests)."""
     logger.info("initializing_application")
     # Configure logging with shared formatter
-    if shared_configure_logging:
-        shared_configure_logging(
+    if configure_logging:
+        configure_logging(
             service=settings.otel_service_name,
             level=settings.app_log_level,
             environment=settings.app_environment,

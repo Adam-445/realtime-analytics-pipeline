@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from src.core.logging_config import (
+from shared.logging.json import (
     CustomJsonFormatter,
     SensitiveDataFilter,
     configure_logging,
@@ -15,96 +15,91 @@ class TestSensitiveDataFilter:
 
     def test_filter_removes_sensitive_data(self):
         """Test that sensitive data is redacted based on patterns."""
-        with patch("src.core.logging_config.settings") as mock_settings:
-            mock_settings.app_log_redaction_patterns = ["password", "token", "secret"]
+        sdf = SensitiveDataFilter(["password", "token", "secret"])
 
-            data = {
-                "username": "john_doe",
-                "password": "secret123",
-                "api_token": "abc123",
-                "user_secret": "hidden",
-                "regular_field": "visible",
-            }
+        data = {
+            "username": "john_doe",
+            "password": "secret123",
+            "api_token": "abc123",
+            "user_secret": "hidden",
+            "regular_field": "visible",
+        }
 
-            filtered = SensitiveDataFilter.filter(data)
+        filtered = sdf.filter(data)
 
-            assert filtered["username"] == "john_doe"
-            assert filtered["password"] == "[REDACTED]"
-            assert filtered["api_token"] == "[REDACTED]"
-            assert filtered["user_secret"] == "[REDACTED]"
-            assert filtered["regular_field"] == "visible"
+        assert filtered["username"] == "john_doe"
+        assert filtered["password"] == "[REDACTED]"
+        assert filtered["api_token"] == "[REDACTED]"
+        assert filtered["user_secret"] == "[REDACTED]"
+        assert filtered["regular_field"] == "visible"
 
     def test_filter_handles_nested_objects(self):
         """Test that filtering works recursively on nested dictionaries."""
-        with patch("src.core.logging_config.settings") as mock_settings:
-            mock_settings.app_log_redaction_patterns = ["password"]
+        sdf = SensitiveDataFilter(["password"])
 
-            data = {
-                "user": {
-                    "name": "john",
-                    "password": "secret123",
-                    "profile": {
-                        "password_hint": "pet name",
-                        "age": 30,
-                    },
+        data = {
+            "user": {
+                "name": "john",
+                "password": "secret123",
+                "profile": {
+                    "password_hint": "pet name",
+                    "age": 30,
                 },
-                "regular": "data",
-            }
+            },
+            "regular": "data",
+        }
 
-            filtered = SensitiveDataFilter.filter(data)
+        filtered = sdf.filter(data)
 
-            assert filtered["user"]["name"] == "john"
-            assert filtered["user"]["password"] == "[REDACTED]"
-            assert filtered["user"]["profile"]["password_hint"] == "[REDACTED]"
-            assert filtered["user"]["profile"]["age"] == 30
-            assert filtered["regular"] == "data"
+        assert filtered["user"]["name"] == "john"
+        assert filtered["user"]["password"] == "[REDACTED]"
+        assert filtered["user"]["profile"]["password_hint"] == "[REDACTED]"
+        assert filtered["user"]["profile"]["age"] == 30
+        assert filtered["regular"] == "data"
 
     def test_filter_with_empty_patterns(self):
         """Test that filter works when no patterns are configured."""
-        with patch("src.core.logging_config.settings") as mock_settings:
-            mock_settings.app_log_redaction_patterns = []
+        sdf = SensitiveDataFilter([])
 
-            data = {"password": "secret", "token": "abc123"}
-            filtered = SensitiveDataFilter.filter(data)
+        data = {"password": "secret", "token": "abc123"}
+        filtered = sdf.filter(data)
 
-            assert filtered == data
+        assert filtered == data
 
     def test_filter_preserves_non_dict_values(self):
         """Test that non-dict values are preserved correctly."""
-        with patch("src.core.logging_config.settings") as mock_settings:
-            mock_settings.app_log_redaction_patterns = ["password"]
+        sdf = SensitiveDataFilter(["password"])
 
-            data = {
-                "password": "secret",
-                "number": 42,
-                "list": [1, 2, 3],
-                "none_value": None,
-            }
+        data = {
+            "password": "secret",
+            "number": 42,
+            "list": [1, 2, 3],
+            "none_value": None,
+        }
 
-            filtered = SensitiveDataFilter.filter(data)
+        filtered = sdf.filter(data)
 
-            assert filtered["password"] == "[REDACTED]"
-            assert filtered["number"] == 42
-            assert filtered["list"] == [1, 2, 3]
-            assert filtered["none_value"] is None
+        assert filtered["password"] == "[REDACTED]"
+        assert filtered["number"] == 42
+        assert filtered["list"] == [1, 2, 3]
+        assert filtered["none_value"] is None
 
 
 class TestCustomJsonFormatter:
     """Test custom JSON formatter functionality."""
 
-    @patch("src.core.logging_config.settings")
     @patch("socket.gethostname")
     @patch("os.getpid")
-    def test_formatter_initialization(
-        self, mock_getpid, mock_gethostname, mock_settings
-    ):
+    def test_formatter_initialization(self, mock_getpid, mock_gethostname):
         """Test that formatter initializes with correct values."""
         mock_gethostname.return_value = "test-host"
         mock_getpid.return_value = 12345
-        mock_settings.otel_service_name = "test-service"
-        mock_settings.app_environment = "test"
 
-        formatter = CustomJsonFormatter()
+        formatter = CustomJsonFormatter(
+            service="test-service",
+            environment="test",
+            redaction_patterns=[],
+        )
 
         assert formatter.hostname == "test-host"
         assert formatter.pid == 12345
@@ -112,16 +107,15 @@ class TestCustomJsonFormatter:
         assert formatter.environment == "test"
         assert formatter.sensitive_filter is not None
 
-    @patch("src.core.logging_config.settings")
     @patch("socket.gethostname", return_value="test-host")
     @patch("os.getpid", return_value=12345)
-    def test_format_basic_record(self, mock_getpid, mock_gethostname, mock_settings):
+    def test_format_basic_record(self, mock_getpid, mock_gethostname):
         """Test formatting of a basic log record."""
-        mock_settings.otel_service_name = "test-service"
-        mock_settings.app_environment = "test"
-        mock_settings.app_log_redaction_patterns = []
-
-        formatter = CustomJsonFormatter()
+        formatter = CustomJsonFormatter(
+            service="test-service",
+            environment="test",
+            redaction_patterns=[],
+        )
 
         # Create a mock log record
         record = logging.LogRecord(
@@ -149,18 +143,15 @@ class TestCustomJsonFormatter:
         # Verify timestamp format
         datetime.fromisoformat(parsed["timestamp"].replace("Z", "+00:00"))
 
-    @patch("src.core.logging_config.settings")
     @patch("socket.gethostname", return_value="test-host")
     @patch("os.getpid", return_value=12345)
-    def test_format_record_with_exception(
-        self, mock_getpid, mock_gethostname, mock_settings
-    ):
+    def test_format_record_with_exception(self, mock_getpid, mock_gethostname):
         """Test formatting of a log record with exception information."""
-        mock_settings.otel_service_name = "test-service"
-        mock_settings.app_environment = "test"
-        mock_settings.app_log_redaction_patterns = []
-
-        formatter = CustomJsonFormatter()
+        formatter = CustomJsonFormatter(
+            service="test-service",
+            environment="test",
+            redaction_patterns=[],
+        )
 
         try:
             raise ValueError("Test exception")
@@ -187,18 +178,15 @@ class TestCustomJsonFormatter:
             assert parsed["exception"]["message"] == "Test exception"
             assert isinstance(parsed["exception"]["stack"], list)
 
-    @patch("src.core.logging_config.settings")
     @patch("socket.gethostname", return_value="test-host")
     @patch("os.getpid", return_value=12345)
-    def test_format_applies_sensitive_filter(
-        self, mock_getpid, mock_gethostname, mock_settings
-    ):
+    def test_format_applies_sensitive_filter(self, mock_getpid, mock_gethostname):
         """Test that sensitive data filtering is applied during formatting."""
-        mock_settings.otel_service_name = "test-service"
-        mock_settings.app_environment = "test"
-        mock_settings.app_log_redaction_patterns = ["password"]
-
-        formatter = CustomJsonFormatter()
+        formatter = CustomJsonFormatter(
+            service="test-service",
+            environment="test",
+            redaction_patterns=["password"],
+        )
 
         record = logging.LogRecord(
             name="test.logger",
@@ -220,7 +208,11 @@ class TestCustomJsonFormatter:
 
     def test_format_exception_method(self):
         """Test the format_exception method specifically."""
-        formatter = CustomJsonFormatter()
+        formatter = CustomJsonFormatter(
+            service="svc",
+            environment="env",
+            redaction_patterns=[],
+        )
 
         try:
             raise RuntimeError("Test runtime error")
@@ -240,70 +232,60 @@ class TestCustomJsonFormatter:
 class TestConfigureLogging:
     """Test logging configuration function."""
 
-    @patch("src.core.logging_config.settings")
-    def test_configure_logging_basic(self, mock_settings):
+    def test_configure_logging_basic(self):
         """Test basic logging configuration."""
-        mock_settings.otel_service_name = "test-service"
-        mock_settings.app_environment = "test"
-        mock_settings.app_log_level = "INFO"
-        mock_settings.app_log_redaction_patterns = []
-
         with patch("logging.getLogger") as mock_get_logger:
             mock_logger = MagicMock()
             mock_get_logger.return_value = mock_logger
 
-            result = configure_logging()
+            result = configure_logging(
+                service="test-service",
+                environment="test",
+                level="INFO",
+                redaction_patterns=[],
+            )
 
             assert result == mock_logger
             assert mock_logger.setLevel.called
             assert len(mock_logger.handlers) == 1
 
-    @patch("src.core.logging_config.settings")
-    def test_configure_logging_different_levels(self, mock_settings):
+    def test_configure_logging_different_levels(self):
         """Test logging configuration with different log levels."""
-        mock_settings.otel_service_name = "test-service"
-        mock_settings.app_environment = "test"
-        mock_settings.app_log_redaction_patterns = []
-
         test_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
         for level in test_levels:
-            mock_settings.app_log_level = level
-
             with patch("logging.getLogger") as mock_get_logger:
                 mock_logger = MagicMock()
                 mock_get_logger.return_value = mock_logger
 
-                configure_logging()
+                configure_logging(
+                    service="test-service",
+                    environment="test",
+                    level=level,
+                    redaction_patterns=[],
+                )
 
                 expected_level = getattr(logging, level)
                 mock_logger.setLevel.assert_called_with(expected_level)
 
-    @patch("src.core.logging_config.settings")
-    def test_configure_logging_invalid_level(self, mock_settings):
+    def test_configure_logging_invalid_level(self):
         """Test logging configuration with invalid log level falls back to INFO."""
-        mock_settings.otel_service_name = "test-service"
-        mock_settings.app_environment = "test"
-        mock_settings.app_log_level = "INVALID"
-        mock_settings.app_log_redaction_patterns = []
-
         with patch("logging.getLogger") as mock_get_logger:
             mock_logger = MagicMock()
             mock_get_logger.return_value = mock_logger
 
-            configure_logging()
+            configure_logging(
+                service="test-service",
+                environment="test",
+                level="INVALID",
+                redaction_patterns=[],
+            )
 
             # Should fall back to INFO level
             mock_logger.setLevel.assert_called_with(logging.INFO)
 
-    @patch("src.core.logging_config.settings")
-    def test_configure_logging_handler_setup(self, mock_settings):
+    def test_configure_logging_handler_setup(self):
         """Test that console handler is properly configured."""
-        mock_settings.otel_service_name = "test-service"
-        mock_settings.app_environment = "test"
-        mock_settings.app_log_level = "INFO"
-        mock_settings.app_log_redaction_patterns = []
-
         with patch("logging.getLogger") as mock_get_logger, patch(
             "logging.StreamHandler"
         ) as mock_stream_handler:
@@ -313,7 +295,12 @@ class TestConfigureLogging:
             mock_get_logger.return_value = mock_logger
             mock_stream_handler.return_value = mock_handler
 
-            configure_logging()
+            configure_logging(
+                service="test-service",
+                environment="test",
+                level="INFO",
+                redaction_patterns=[],
+            )
 
             # Verify handler setup
             mock_stream_handler.assert_called_once()

@@ -79,7 +79,7 @@ def test_parse_handles_missing_fields():
 def test_parse_unhandled_topic_warns(caplog):
     caplog.set_level("WARNING")
     assert parse_message("unknown_topic", {}) is None
-    assert any("Unhandled topic" in r.message for r in caplog.records)
+    assert any("unhandled_topic" in r.message for r in caplog.records)
 
 
 def test_parse_accepts_iso_timestamp():
@@ -102,4 +102,4 @@ def test_parse_bad_timestamp_warns_and_returns_none(caplog):
         parse_message("event_metrics", {"window_start": "not-a-ts", "event_type": "x"})
         is None
     )
-    assert any("Unable to parse window_start" in r.message for r in caplog.records)
+    assert any("invalid_window_start" in r.message for r in caplog.records)
