@@ -43,6 +43,7 @@ def parse_message(topic: str, payload: dict) -> Optional[Operation]:
         return Operation(type="perf", window_start=window_start, fields=fields)
     if topic == "session_metrics":
         return None
+    # Structured warning for unhandled topics
     logger.warning("unhandled_topic", extra={"topic": topic})
     return None
 
