@@ -1,8 +1,8 @@
 import asyncio
 
-from core.config import TestConfig
-from reporting.console import print_summary
-from scenarios.throughput import ThroughputScenario
+from performance.core.config import TestConfig
+from performance.reporting.console import print_summary
+from performance.scenarios.throughput import ThroughputScenario
 
 
 async def run_single_test(target_rps: int, duration: int = 60):

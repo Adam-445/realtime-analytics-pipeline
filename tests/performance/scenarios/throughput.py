@@ -6,9 +6,9 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 import aiohttp
-from core.config import TestConfig
-from core.generator import EventGenerator
-from core.metrics import Metrics
+from performance.core.config import TestConfig
+from performance.core.generator import EventGenerator
+from performance.core.metrics import Metrics
 
 
 class ThroughputScenario:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from typing import Dict
 
-from core.config import TestConfig
+from performance.core.config import TestConfig
 
 
 class EventGenerator:

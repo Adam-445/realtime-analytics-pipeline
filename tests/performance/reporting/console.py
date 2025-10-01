@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from core.config import TestConfig
-from core.metrics import Metrics
+from performance.core.config import TestConfig
+from performance.core.metrics import Metrics
 
 
 def print_summary(metrics: Metrics, config: TestConfig) -> None:
