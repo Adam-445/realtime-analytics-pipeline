@@ -1,5 +1,3 @@
-"""Background worker that drains the operation queue and applies Redis batches."""
-
 from __future__ import annotations
 
 import asyncio
@@ -69,7 +67,9 @@ async def redis_batch_worker(
                     await kafka_consumer.commit()
                     KAFKA_COMMIT_BATCHES_TOTAL.inc()
                 except Exception as e:
-                    logger.warning(f"Kafka commit failed after batch flush: {e}")
+                    logger.warning(
+                        "kafka_commit_failed_after_flush", extra={"error": str(e)}
+                    )
             batch.clear()
             last_flush = now
             KAFKA_PENDING_MESSAGES.set(0)
@@ -84,7 +84,9 @@ async def redis_batch_worker(
                     await kafka_consumer.commit()
                     KAFKA_COMMIT_BATCHES_TOTAL.inc()
                 except Exception as e:
-                    logger.warning(f"Kafka commit failed on final flush {e}")
+                    logger.warning(
+                        "kafka_commit_failed_on_final_flush", extra={"error": str(e)}
+                    )
         except Exception as e:  # noqa
             REDIS_BATCH_ERRORS_TOTAL.inc()
             logger.error(

@@ -12,7 +12,10 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Set PYTHONPATH to ensure imports work from /app
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prom
 
 # Copy dependency list and install Python packages
 COPY requirements.txt .

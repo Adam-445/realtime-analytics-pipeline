@@ -1,3 +1,6 @@
+from shared.constants.topics import Topics
+
+
 def debug_database_state(
     clickhouse_client, print_tables: bool = False, tables: list | None = None
 ):
@@ -5,7 +8,11 @@ def debug_database_state(
     Helper function to debug the current state of all tables
     """
     if not tables:
-        tables = ["event_metrics", "session_metrics", "performance_metrics"]
+        tables = [
+            Topics.EVENT_METRICS,
+            Topics.SESSION_METRICS,
+            Topics.PERFORMANCE_METRICS,
+        ]
 
     for table in tables:
         try:

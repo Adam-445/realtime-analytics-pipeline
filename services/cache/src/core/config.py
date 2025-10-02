@@ -1,13 +1,15 @@
 from pydantic_settings import BaseSettings
 
+from shared.constants import Topics
+
 
 class Settings(BaseSettings):
     # Kafka
     kafka_bootstrap_servers: str = "kafka1:19092"
     cache_kafka_topics: list[str] = [
-        "event_metrics",
-        # "session_metrics", # TODO: add when session caching implemented
-        "performance_metrics",
+        Topics.EVENT_METRICS,
+        # Topics.SESSION_METRICS,  # enable when session caching is implemented
+        Topics.PERFORMANCE_METRICS,
     ]
     cache_kafka_consumer_group: str = "cache-service"
     cache_consume_from: str = "latest"  # earliest|latest

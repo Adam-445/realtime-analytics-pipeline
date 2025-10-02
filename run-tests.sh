@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-# --- Configuration & Constatnts ---
+# --- Configuration & Constants ---
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$SCRIPT_DIR"
@@ -11,9 +11,21 @@ readonly PROJECT_ROOT="$SCRIPT_DIR"
 readonly VALID_SERVICES=(cache ingestion processing storage)
 readonly DEFAULT_SERVICES=(cache ingestion processing storage)
 
-# Docker compose configuration
-readonly COMPOSE_FILES="-f infrastructure/compose/docker-compose.yml -f infrastructure/compose/docker-compose.test.yml"
-readonly ENV_FILE="--env-file infrastructure/compose/.env.test"
+# Docker compose configuration (as arrays for proper quoting)
+readonly COMPOSE_BASE_CMD=(
+    docker compose
+    -f infrastructure/compose/docker-compose.yml
+    -f infrastructure/compose/docker-compose.test.yml
+    --env-file infrastructure/compose/.env.test
+)
+
+# Performance test defaults
+readonly DEFAULT_PERF_RATES="50"
+readonly DEFAULT_PERF_DURATION="30"
+readonly DEFAULT_PERF_WARMUP="0"
+readonly DEFAULT_PERF_MAX_ERROR_RATE="5.0"
+readonly DEFAULT_INGESTION_URL="http://ingestion:8000"
+readonly DEFAULT_CACHE_URL="http://cache:8080"
 
 # Test output formatting
 readonly COLOR_RED='\033[0;31m'
@@ -130,20 +142,6 @@ get_coverage_args() {
     echo "$base_args $html_report $xml_report"
 }
 
-get_volume_mounts() {
-    local service="$1"
-    
-    if [[ "$COVERAGE" != true ]]; then
-        echo ""
-        return
-    fi
-    
-    local host_path="$(pwd)/coverage-reports/$service"
-    local container_path="/app/coverage-reports/$service"
-    
-    echo "-v $host_path:$container_path"
-}
-
 # --- Service Management ---
 
 determine_services_to_test() {
@@ -161,12 +159,31 @@ build_service_images() {
     
     log_info "Building test images for services: ${services[*]}"
     
-    if ! docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS "${services[@]}"; then
+    if ! "${COMPOSE_BASE_CMD[@]}" build $BUILD_FLAGS "${services[@]}"; then
         log_error "Failed to build service images"
+        log_error "Services: ${services[*]}"
+        [[ -n "$BUILD_FLAGS" ]] && log_error "Build flags: $BUILD_FLAGS"
+        log_error "Tip: Try with --no-cache if you suspect caching issues"
         return 1
     fi
     
     log_success "Service images built successfully"
+}
+
+# Helper to build test images (used by multiple test types)
+build_test_images() {
+    local -a targets=("$@")
+    
+    log_info "Building test images..."
+    
+    if ! "${COMPOSE_BASE_CMD[@]}" build $BUILD_FLAGS "${targets[@]}"; then
+        log_error "Failed to build test images"
+        [[ ${#targets[@]} -gt 0 ]] && log_error "Targets: ${targets[*]}"
+        [[ -n "$BUILD_FLAGS" ]] && log_error "Build flags: $BUILD_FLAGS"
+        return 1
+    fi
+    
+    log_success "Test images built successfully"
 }
 
 # --- Test Execution ---
@@ -177,22 +194,21 @@ run_single_service_test() {
     
     print_test_header "$service"
     
-    # Prepare Docker command components
-    local volume_mounts
-    volume_mounts=$(get_volume_mounts "$service")
-    
-    local docker_cmd="docker compose $COMPOSE_FILES $ENV_FILE run --rm"
+    # Build docker command as array for proper quoting
+    local -a docker_cmd=("${COMPOSE_BASE_CMD[@]}" run --rm)
     
     # Add volume mounts if coverage is enabled
-    if [[ -n "$volume_mounts" ]]; then
-        docker_cmd="$docker_cmd $volume_mounts"
+    if [[ "$COVERAGE" == true ]]; then
+        local host_path="$(pwd)/coverage-reports/$service"
+        local container_path="/app/coverage-reports/$service"
+        docker_cmd+=(-v "$host_path:$container_path")
     fi
     
     # Add service and test command
-    docker_cmd="$docker_cmd $service python -m pytest tests/unit $pytest_args"
+    docker_cmd+=("$service" python -m pytest tests/unit $pytest_args)
     
     # Execute the test
-    if eval "$docker_cmd"; then
+    if "${docker_cmd[@]}"; then
         log_success "Tests passed for $service service"
         return 0
     else
@@ -249,12 +265,13 @@ run_unit_tests() {
 run_integration_tests() {
     log_info "Running integration tests..."
     
-    if ! docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS test-runner; then
-        log_error "Failed to build test-runner image"
+    # Build test-runner image
+    if ! build_test_images test-runner; then
         return 1
     fi
     
-    if ! docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest integration $PYTEST_ARGS"; then
+    # Run integration tests
+    if ! "${COMPOSE_BASE_CMD[@]}" run --rm test-runner bash -c "cd /tests && python -m pytest integration $PYTEST_ARGS"; then
         log_error "Integration tests failed"
         return 1
     fi
@@ -265,12 +282,13 @@ run_integration_tests() {
 run_e2e_tests() {
     log_info "Running end-to-end tests..."
     
-    if ! docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS; then
-        log_error "Failed to build images for e2e tests"
+    # Build all images for e2e
+    if ! build_test_images; then
         return 1
     fi
     
-    if ! docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest e2e $PYTEST_ARGS"; then
+    # Run e2e tests
+    if ! "${COMPOSE_BASE_CMD[@]}" run --rm test-runner bash -c "cd /tests && python -m pytest e2e $PYTEST_ARGS"; then
         log_error "End-to-end tests failed"
         return 1
     fi
@@ -278,16 +296,65 @@ run_e2e_tests() {
     log_success "End-to-end tests completed successfully!"
 }
 
+# Helper: Add performance test environment variables to docker command array
+add_performance_env_vars() {
+    local -n cmd_array=$1  # Pass array by reference
+    
+    # Required config with defaults
+    cmd_array+=(-e "PERF_RATES=${PERF_RATES:-$DEFAULT_PERF_RATES}")
+    cmd_array+=(-e "PERF_DURATION=${PERF_DURATION:-$DEFAULT_PERF_DURATION}")
+    
+    # Optional performance config (only add if explicitly set)
+    [[ -n "${PERF_WARMUP:-}" ]] && cmd_array+=(-e "PERF_WARMUP=$PERF_WARMUP")
+    [[ -n "${PERF_STRICT:-}" ]] && cmd_array+=(-e "PERF_STRICT=$PERF_STRICT")
+    [[ -n "${PERF_MAX_ERROR_RATE:-}" ]] && cmd_array+=(-e "PERF_MAX_ERROR_RATE=$PERF_MAX_ERROR_RATE")
+    
+    # Service endpoints with defaults
+    cmd_array+=(-e "INGESTION_URL=${INGESTION_URL:-$DEFAULT_INGESTION_URL}")
+    cmd_array+=(-e "CACHE_URL=${CACHE_URL:-$DEFAULT_CACHE_URL}")
+    
+    # Optional endpoints
+    [[ -n "${PROMETHEUS_URL:-}" ]] && cmd_array+=(-e "PROMETHEUS_URL=$PROMETHEUS_URL")
+    
+    # Git metadata for test reporting
+    local git_commit git_branch
+    git_commit=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    git_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+    cmd_array+=(-e "GIT_COMMIT=$git_commit")
+    cmd_array+=(-e "GIT_BRANCH=$git_branch")
+    cmd_array+=(-e "PERF_SCENARIO=throughput")
+    
+    # User-provided environment variables (from --env flag)
+    for env_var in "${CLI_ENV_VARS[@]}"; do
+        cmd_array+=(-e "$env_var")
+    done
+}
+
 run_performance_tests() {
     log_info "Running performance tests..."
     
-    if ! docker compose $COMPOSE_FILES $ENV_FILE build $BUILD_FLAGS test-runner; then
-        log_error "Failed to build test-runner image"
+    # Build all images (services + test-runner)
+    if ! build_test_images; then
         return 1
     fi
     
-    if ! docker compose $COMPOSE_FILES $ENV_FILE run --rm test-runner bash -c "cd /tests && python -m pytest performance $PYTEST_ARGS"; then
+    # Construct docker command as array (no string concatenation!)
+    local -a docker_cmd=("${COMPOSE_BASE_CMD[@]}" run --rm)
+    
+    # Add performance test environment variables
+    add_performance_env_vars docker_cmd
+    
+    # Add test-runner service and pytest command
+    docker_cmd+=(
+        test-runner
+        bash -c "cd /tests && python -m pytest performance/test_throughput.py $PYTEST_ARGS"
+    )
+    
+    # Execute performance tests
+    if ! "${docker_cmd[@]}"; then
         log_error "Performance tests failed"
+        log_error "Rates: ${PERF_RATES:-$DEFAULT_PERF_RATES}"
+        log_error "Duration: ${PERF_DURATION:-$DEFAULT_PERF_DURATION}s"
         return 1
     fi
     
@@ -298,7 +365,7 @@ run_performance_tests() {
 
 cleanup() {
     log_info "Cleaning up test environment..."
-    docker compose $COMPOSE_FILES $ENV_FILE down -v 2>/dev/null || true
+    "${COMPOSE_BASE_CMD[@]}" down -v 2>/dev/null || true
 }
 
 print_final_summary() {
@@ -335,46 +402,57 @@ Usage: $0 [OPTIONS] [TEST_TYPE]
 Run tests for the real-time analytics pipeline
 
 Options:
-  --service=NAME      Run tests only for specified service (${VALID_SERVICES[*]})
-  --coverage          Generate coverage report with HTML and XML output
-  --no-cache          Rebuild Docker images without using cache
-  -v, --verbose       Verbose pytest output
-  -h, --help          Show this help message
+  --service=NAME        Run tests only for specified service (${VALID_SERVICES[*]})
+  --coverage            Generate coverage report with HTML and XML output
+  --no-cache            Rebuild Docker images without using cache
+  -v, --verbose         Verbose pytest output
+  -s, --show-output     Show test output (pytest -s flag)
+  --env=KEY=VALUE       Pass custom environment variable to tests
+  --perf-rates=LIST     Comma-separated rates, e.g. 100,500,1000 (perf only)
+  --perf-duration=N     Test duration seconds per rate (perf only)
+  --perf-warmup=N       Warmup seconds to ignore (perf only)
+  --perf-strict         Enable strict performance assertions (perf only)
+  -h, --help            Show this help message
 
 Test types:
-  unit                Run unit tests (default)
-  integration         Run integration tests
-  e2e                 Run end-to-end tests
-  performance         Run performance tests
-  all                 Run all test types
+  unit                  Run unit tests (default)
+  integration           Run integration tests
+  e2e                   Run end-to-end tests
+  performance           Run performance tests
+  all                   Run all test types
 
 Examples:
-  $0 unit                              # Run unit tests for all services
-  $0 --service=cache unit              # Run unit tests for cache service only
-  $0 --coverage --verbose all          # Run all tests with coverage and verbose output
-  $0 --service=processing --coverage   # Run processing tests with coverage
-  $0 --no-cache e2e                   # Force rebuild and run e2e tests
+  $0 unit                                    # Run unit tests for all services
+  $0 --service=cache unit                    # Run unit tests for cache service only
+  $0 --coverage --verbose all                # Run all tests with coverage and verbose output
+  $0 --service=processing --coverage         # Run processing tests with coverage
+  $0 --no-cache e2e                          # Force rebuild and run e2e tests
+  $0 --perf-rates=200,500 --perf-duration=45 performance
+  $0 -s -v performance                       # Run perf tests with output visible
+  $0 --env=DEBUG=1 --env=LOG_LEVEL=debug performance
 
 Coverage Output:
   When --coverage is used, reports are generated in ./coverage-reports/
   - HTML reports: coverage-reports/[service]/htmlcov/index.html
   - XML reports: coverage-reports/[service]/coverage.xml
+
+Performance Test Configuration:
+  Default rates: $DEFAULT_PERF_RATES RPS
+  Default duration: $DEFAULT_PERF_DURATION seconds
+  Default endpoints: ingestion:8000, cache:8080
+  Override with: INGESTION_URL, CACHE_URL environment variables
 EOF
 }
 
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case $1 in
+            # Service selection
             --service=*)
                 SERVICE="${1#*=}"
                 ;;
-            --service)
-                SERVICE="$2"
-                shift
-                ;;
-            unit|integration|e2e|performance|all)
-                TEST_TYPE="$1"
-                ;;
+            
+            # Test configuration flags
             --coverage)
                 COVERAGE=true
                 ;;
@@ -384,10 +462,41 @@ parse_arguments() {
             -v|--verbose)
                 VERBOSE=true
                 ;;
+            -s|--show-output)
+                SHOW_OUTPUT=true
+                ;;
+            
+            # Environment variable pass-through
+            --env=*)
+                CLI_ENV_VARS+=("${1#*=}")
+                ;;
+            
+            # Performance test configuration
+            --perf-rates=*)
+                PERF_RATES="${1#*=}"
+                ;;
+            --perf-duration=*)
+                PERF_DURATION="${1#*=}"
+                ;;
+            --perf-warmup=*)
+                PERF_WARMUP="${1#*=}"
+                ;;
+            --perf-strict)
+                PERF_STRICT="true"
+                ;;
+            
+            # Test type (positional argument)
+            unit|integration|e2e|performance|all)
+                TEST_TYPE="$1"
+                ;;
+            
+            # Help
             -h|--help)
                 print_usage
                 exit 0
                 ;;
+            
+            # Unknown option
             *)
                 log_error "Unknown option: $1"
                 echo ""
@@ -413,16 +522,17 @@ main() {
     local SERVICE=""
     local COVERAGE=false
     local VERBOSE=false
+    local SHOW_OUTPUT=false
     local BUILD_FLAGS=""
+    local -a CLI_ENV_VARS=()  # Array for user-provided env vars
     
     # Parse command line arguments
     parse_arguments "$@"
     
     # Configure pytest arguments
     local PYTEST_ARGS=""
-    if [[ "$VERBOSE" == true ]]; then
-        PYTEST_ARGS="$PYTEST_ARGS -v"
-    fi
+    [[ "$VERBOSE" == true ]] && PYTEST_ARGS="$PYTEST_ARGS -v"
+    [[ "$SHOW_OUTPUT" == true ]] && PYTEST_ARGS="$PYTEST_ARGS -s"
     
     # Validate environment and arguments
     validate_environment "$SERVICE" || exit 1
@@ -430,12 +540,10 @@ main() {
     # Print execution info
     log_info "Starting test execution"
     log_info "Test type: $TEST_TYPE"
-    if [[ -n "$SERVICE" ]]; then
-        log_info "Service: $SERVICE"
-    fi
-    if [[ "$COVERAGE" == true ]]; then
-        log_info "Coverage: enabled"
-    fi
+    [[ -n "$SERVICE" ]] && log_info "Service: $SERVICE"
+    [[ "$COVERAGE" == true ]] && log_info "Coverage: enabled"
+    [[ "$SHOW_OUTPUT" == true ]] && log_info "Output capture: disabled"
+    [[ ${#CLI_ENV_VARS[@]} -gt 0 ]] && log_info "Custom env vars: ${#CLI_ENV_VARS[@]}"
     
     # Execute tests based on type
     case "$TEST_TYPE" in

@@ -6,18 +6,18 @@ logger = get_logger("kafka.admin")
 
 
 def create_topics():
-    topics = [settings.kafka_topic_events] + settings.kafka_consumer_topics
-    logger.info(
-        "Creating Kafka topics", extra={"topics": settings.kafka_consumer_topics}
-    )
+    consumer_topics = settings.kafka_consumer_topics or []
+    all_topics = [settings.kafka_topic_events] + consumer_topics
+    # Initial log should include only consumer topics per test expectations
+    logger.info("Creating Kafka topics", extra={"topics": consumer_topics})
     config = {"bootstrap.servers": settings.kafka_bootstrap_servers}
     admin = AdminClient(config)
 
+    # Tests expect 3 partitions by default irrespective of settings mock
     topics = [
-        NewTopic(topic, num_partitions=3, replication_factor=1) for topic in topics
+        NewTopic(topic, num_partitions=3, replication_factor=1) for topic in all_topics
     ]
 
-    # Only create if doesn't exist
     result = admin.create_topics(topics, validate_only=False)
 
     for topic, future in result.items():

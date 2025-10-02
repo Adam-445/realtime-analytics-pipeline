@@ -43,7 +43,8 @@ def parse_message(topic: str, payload: dict) -> Optional[Operation]:
         return Operation(type="perf", window_start=window_start, fields=fields)
     if topic == "session_metrics":
         return None
-    logger.warning("Unhandled topic %s", topic)
+    # Structured warning for unhandled topics
+    logger.warning("unhandled_topic", extra={"topic": topic})
     return None
 
 
@@ -57,5 +58,5 @@ def _coerce_ts(value: Any) -> Optional[int]:
             dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
             return int(dt.timestamp() * 1000)
         except Exception:  # noqa
-            logger.warning("Unable to parse window_start %s", value)
+            logger.warning("invalid_window_start", extra={"value": value})
     return None

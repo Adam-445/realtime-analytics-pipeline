@@ -3,8 +3,9 @@ import asyncio
 import fakeredis.aioredis
 import pytest
 from src.domain.operations import Operation
-from src.infrastructure.redis import constants
 from src.infrastructure.redis.repository import CacheRepository
+
+from shared.constants import RedisKeys
 
 
 @pytest.mark.asyncio
@@ -17,10 +18,9 @@ async def test_pipeline_apply_stores_hashes_and_indices():
     ]
     await repo.pipeline_apply(ops)
 
-    event_key = constants.WINDOW_EVENT_HASH.format(window_start=1000)
-    perf_key = constants.WINDOW_PERF_HASH.format(window_start=2000)
+    event_key = RedisKeys.window_key("event", 1000)
+    perf_key = RedisKeys.window_key("performance", 2000)
 
-    # In some fakeredis versions async hgetall returns coroutine; await defensively
     ev = r.hgetall(event_key)
     if hasattr(ev, "__await__"):
         ev = await ev  # type: ignore[assignment]
@@ -30,8 +30,8 @@ async def test_pipeline_apply_stores_hashes_and_indices():
     assert ev == {"click.count": "5"}
     assert pf == {"mobile.avg_load_time": "1.2"}
 
-    event_index = await r.zrevrange(constants.WINDOW_EVENT_INDEX, 0, -1)
-    perf_index = await r.zrevrange(constants.WINDOW_PERF_INDEX, 0, -1)
+    event_index = await r.zrevrange(RedisKeys.WINDOW_EVENT_INDEX, 0, -1)
+    perf_index = await r.zrevrange(RedisKeys.WINDOW_PERF_INDEX, 0, -1)
     assert str(1000) in event_index
     assert str(2000) in perf_index
 
@@ -59,7 +59,7 @@ async def test_retention_trimming():
         await repo.store_event_window(1000 + i, {"v": i})
     # only last 3 should remain in index (sorted zset ascending score,
     # we keep newest by trimming lowest rank)
-    ids = await r.zrange(constants.WINDOW_EVENT_INDEX, 0, -1)
+    ids = await r.zrange(RedisKeys.WINDOW_EVENT_INDEX, 0, -1)
     # expect newest 3: 1002,1003,1004 (older removed)
     assert ids == ["1002", "1003", "1004"]
 
@@ -71,7 +71,7 @@ async def test_publish_update():
     # fakeredis pubsub capture
     psub = r.pubsub()
     # Use direct channel subscribe (psubscribe expects pattern semantics)
-    await psub.subscribe(constants.PUBSUB_CHANNEL_UPDATES)
+    await psub.subscribe(RedisKeys.PUBSUB_CHANNEL_UPDATES)
     await repo.publish_update({"a": 1})
     # Allow event loop turn
     await asyncio.sleep(0)

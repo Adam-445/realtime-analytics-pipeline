@@ -45,9 +45,10 @@ services:
       - ../monitoring/jmx/kafka-jmx-exporter.yml:/opt/kafka/kafka-jmx-exporter.yml:ro
     healthcheck:
       test: [ "CMD", "bash", "-c", "echo > /dev/tcp/localhost/9092" ]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      start_period: 40s
+      retries: 12
     networks:
       - analytics_net
     restart: unless-stopped
@@ -121,10 +122,13 @@ services:
       CLICKHOUSE_USER: admin
       CLICKHOUSE_PASSWORD: admin
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+    # Use curl against /ping endpoint; allow longer warmup (users, dictionaries) before marking unhealthy
+    # Fall back to clickhouse-client if curl not present (official image has curl installed)
+      test: ["CMD-SHELL", "curl -sS http://localhost:8123/ping || clickhouse-client --query 'SELECT 1'"]
       interval: 5s
-      timeout: 3s
-      retries: 5
+      timeout: 5s
+      start_period: 40s
+      retries: 12
     networks:
       - analytics_net
 
@@ -176,8 +180,16 @@ services:
       - redis
     networks:
       - analytics_net
+    volumes:
+      - ../../shared:/app/shared:ro
     command: [ "bash", "/app/bin/entrypoint.sh" ]
     restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://cache:8080/healthz"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
   ingestion:
     build:
       context: ../../services/ingestion
@@ -190,7 +202,15 @@ services:
     networks:
       - analytics_net
     command: [ "bash", "/app/bin/entrypoint.sh" ]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://ingestion:8000/v1/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     restart: on-failure
+    volumes:
+      - ../../shared:/app/shared:ro
 
   processing:
     build:
@@ -207,20 +227,30 @@ services:
       - analytics_net
     command: [ "bash", "/app/bin/entrypoint.sh" ]
     restart: on-failure
+    volumes:
+      - ../../shared:/app/shared:ro
 
   storage:
     build:
       context: ../../services/storage
       dockerfile: Dockerfile
+      target: production
     ports:
-      - "8001:8001"
+      - "8001:8001"  
     volumes:
       - ../../services/storage/src:/app/src:ro
+      - ../../shared:/app/shared:ro
     depends_on:
       - clickhouse
       - kafka1
     networks:
       - analytics_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://storage:8081/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
 
 

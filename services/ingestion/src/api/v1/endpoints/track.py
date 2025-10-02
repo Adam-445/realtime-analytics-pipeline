@@ -1,4 +1,6 @@
+import os
 import time
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, status
 from prometheus_client import Counter, Histogram
@@ -6,6 +8,15 @@ from src.api.v1.dependencies import get_kafka_producer
 from src.core.logger import get_logger
 from src.infrastructure.kafka.producer import EventProducer
 from src.schemas.analytics_event import AnalyticsEvent
+
+# Multiprocess metrics directory safeguard: tests invoke app imports without
+# running container entrypoint that pre-creates PROMETHEUS_MULTIPROC_DIR.
+_prom_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+if _prom_dir:
+    try:  # pragma: no cover - trivial filesystem operation
+        Path(_prom_dir).mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
 
 INGESTION_REQUESTS = Counter("ingestion_requests_total", "Total API Requests")
 INGESTION_LATENCY = Histogram("ingestion_request_latency_seconds", "Request latency")
@@ -26,6 +37,7 @@ async def track_event(
     logger = get_logger("api.track")
     start_time = time.time()
 
+    # Tests expect info level logging for received event
     logger.info(
         "Received analytics event",
         extra={
@@ -39,16 +51,6 @@ async def track_event(
     INGESTION_REQUESTS.inc()
     try:
         await producer.send_event(event)
-        logger.info(
-            "Event processed successfully",
-            extra={
-                "processing_time": time.time() - start_time,
-                "event_type": event.event.type,
-                "event_id": str(event.event.id),
-            },
-        )
-        return {"status": "accepted"}
-
     except Exception as e:
         KAFKA_PRODUCER_ERRORS.inc()
         logger.error(
@@ -60,6 +62,16 @@ async def track_event(
             },
         )
         raise
-
+    else:
+        # Tests expect success logged at info level
+        logger.info(
+            "Event processed successfully",
+            extra={
+                "processing_time": time.time() - start_time,
+                "event_type": event.event.type,
+                "event_id": str(event.event.id),
+            },
+        )
+        return {"status": "accepted"}
     finally:
         INGESTION_LATENCY.observe(time.time() - start_time)

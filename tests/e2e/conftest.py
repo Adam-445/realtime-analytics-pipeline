@@ -3,6 +3,8 @@ import time
 
 import pytest
 from clickhouse_driver import Client
+from utils.clickhouse.poll import poll_for_data
+from utils.ingestion.events import create_test_event, send_event
 
 # ClickHouse connection defaults
 CLICKHOUSE_HOST = os.getenv("CLICKHOUSE_HOST", "clickhouse")
@@ -18,9 +20,9 @@ TABLES_TO_CLEAN = [
 ]
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def clickhouse_client():
-    """ClickHouse client, connected once per test module."""
+    """Session-scoped ClickHouse client reused across tests for speed."""
     client = Client(
         host=CLICKHOUSE_HOST,
         port=CLICKHOUSE_PORT,
@@ -30,7 +32,7 @@ def clickhouse_client():
     )
     try:
         client.execute("SELECT 1")
-    except Exception as e:
+    except Exception as e:  # pragma: no cover - infrastructure failure
         pytest.exit(
             f"Cannot connect to ClickHouse at {CLICKHOUSE_HOST}:{CLICKHOUSE_PORT}: {e}"
         )
@@ -40,13 +42,11 @@ def clickhouse_client():
 
 @pytest.fixture(scope="function", autouse=True)
 def clean_test_environment(clickhouse_client: Client):
-    """
-    Truncate all test tables before each test function.
-    Adds a brief pause to allow upstream sinks (e.g. Flink) to quiesce.
-    """
+    """Truncate all metrics tables before each test for isolation."""
     for tbl in TABLES_TO_CLEAN:
         clickhouse_client.execute(f"TRUNCATE TABLE IF EXISTS {tbl}")
-    time.sleep(1)
+    # Small pause to allow any in-flight async inserts to settle before test starts
+    time.sleep(0.25)
 
 
 @pytest.fixture(scope="session")
@@ -70,3 +70,25 @@ def test_config() -> dict:
     }
     # print("Loaded test_config:", config)
     return config
+
+
+# Warm-up: ensure pipeline components are ready before first test
+@pytest.fixture(scope="session", autouse=True)
+def pipeline_warmup(clickhouse_client: Client, test_config: dict):
+    """Send one event and wait for its aggregation"""
+    try:
+        event = create_test_event(event_type="page_view")
+        send_event(event)
+        poll_for_data(
+            clickhouse_client=clickhouse_client,
+            query="""
+            SELECT event_type, event_count, user_count
+            FROM event_metrics
+            WHERE event_type = 'page_view'
+            """,
+            max_wait_time=min(25, test_config.get("max_wait_time", 30)),
+            poll_interval=1,
+            expected_count=1,
+        )
+    except Exception:
+        return

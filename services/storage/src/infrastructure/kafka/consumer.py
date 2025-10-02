@@ -1,8 +1,23 @@
+from __future__ import annotations
+
 import json
 from datetime import datetime
+from typing import Dict, List
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from src.core.config import settings
+
+TimestampedRecord = Dict[str, object]
+BatchMap = Dict[str, List[TimestampedRecord]]
+
+_TS_FIELDS = {"window_start", "window_end", "start_time", "end_time"}
+
+
+def _maybe_parse_timestamp(value: str):  # pragma: no cover - trivial
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return value
 
 
 class KafkaBatchConsumer:
@@ -16,47 +31,34 @@ class KafkaBatchConsumer:
             }
         )
         self.consumer.subscribe(topics)
-        self.buffers = {topic: [] for topic in topics}
+        self.buffers: BatchMap = {topic: [] for topic in topics}
 
-    def consume_batch(self) -> dict[str, list]:
-        """Poll Kafka and return batched messages by topic"""
+    def consume_batch(self) -> BatchMap:
         messages = self.consumer.consume(
             num_messages=settings.storage_batch_size, timeout=1.0
         )
-
         if not messages:
             return {}
-
         for msg in messages:
             if msg.error():
                 if msg.error().code() == KafkaError._PARTITION_EOF:
                     continue
                 raise KafkaException(msg.error())
-
             try:
                 value = json.loads(msg.value().decode("utf-8"))
-
-                # Format timestamp fields since they are currently strings
-                for timestamp_field in [
-                    "window_start",
-                    "window_end",
-                    "start_time",
-                    "end_time",
-                ]:
-                    if timestamp_field in value:
-                        value[timestamp_field] = datetime.fromisoformat(
-                            value[timestamp_field].replace("Z", "+00:00")
-                        )
+                for field in _TS_FIELDS:
+                    if field in value and isinstance(value[field], str):
+                        value[field] = _maybe_parse_timestamp(value[field])
                 self.buffers[msg.topic()].append(value)
             except json.JSONDecodeError:
                 continue
+        result = {k: v.copy() for k, v in self.buffers.items()}
+        for v in self.buffers.values():
+            v.clear()
+        return result
 
-        # Return copy of buffers and reset
-        results = {k: v.copy() for k, v in self.buffers.items()}
-        for buffer in self.buffers.values():
-            buffer.clear()
+    def poll_batch(self) -> BatchMap:  # pragma: no cover - wrapper
+        return self.consume_batch()
 
-        return results
-
-    def commit(self):
+    def commit(self) -> None:
         self.consumer.commit()
