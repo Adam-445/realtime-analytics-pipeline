@@ -5,9 +5,9 @@ This section maps the repository structure to functional modules and describes c
 ## Services
 
 - Ingestion (`services/ingestion`): HTTP ingestion and Kafka producer
-- Processing (`services/processing`): Flink jobs and transformations
-- Storage (`services/storage`): Kafka consumers and ClickHouse persistence
-- Cache (`services/cache`): Kafka consumer, Redis repository, and FastAPI endpoints
+- Processing (`services/processing`): Flink jobs and transformations — see [Processing Internals](./processing/README.md)
+- Storage (`services/storage`): Kafka consumers and ClickHouse persistence — see [Storage Internals](./storage/README.md)
+- Cache (`services/cache`): Kafka consumer, Redis repository, and FastAPI endpoints — see [Cache Internals](./cache/README.md)
 
 ## Shared
 
@@ -17,7 +17,7 @@ This section maps the repository structure to functional modules and describes c
 
 ## Key Extension Points
 
-- Processing Jobs: add new jobs under `services/processing/src/jobs/` and register them in `src/main.py`. See [Adding Jobs](../adding_jobs.md).
+- Processing Jobs: add new jobs under `services/processing/src/jobs/` and register them in `src/main.py`. See [Adding Jobs](./processing/adding-jobs.md).
 - Connectors/Sinks: schemas and connectors under `services/processing/src/connectors`.
 - Storage DDL: update ClickHouse tables in `services/storage/src/infrastructure/clickhouse/ddl.py` when adding new outputs.
 

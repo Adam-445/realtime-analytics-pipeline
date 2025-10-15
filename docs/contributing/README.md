@@ -21,7 +21,7 @@ Use the orchestrated test runner. See [Testing](../testing/README.md).
 
 ## Adding Processing Jobs
 
-Follow [Adding a New Job](../adding_jobs.md). Ensure corresponding ClickHouse tables and storage paths are updated.
+Follow [Adding a New Job](../modules/processing/adding-jobs.md). Ensure corresponding ClickHouse tables and storage paths are updated.
 
 ## Pull Requests
 

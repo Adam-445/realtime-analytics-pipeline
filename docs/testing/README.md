@@ -20,6 +20,8 @@ Common usages with the test runner:
 
 Coverage reports can be enabled with `--coverage` and are written to `./coverage-reports/[service]/`.
 
+For quick manual verification of service endpoints, see [Testing Endpoints](./endpoints.md).
+
 ## Environments
 
 The test composition overlays `infrastructure/compose/docker-compose.yml` with `docker-compose.test.yml` and `.env.test`. The script builds dedicated test images with the `test` stage when available.

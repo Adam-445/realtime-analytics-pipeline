@@ -45,6 +45,7 @@ Runtime configuration is primarily via environment variables surfaced by service
 Use the provided test runner:
 
 - Unit, integration, e2e, performance: see [Testing](../testing/README.md)
+ - Manual verification: see [Testing Endpoints](../testing/endpoints.md)
 
 ## Next
 

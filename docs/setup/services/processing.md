@@ -26,7 +26,7 @@ See `shared/constants/topics.py` for canonical names.
 
 ## Extending
 
-Follow the guide: [Adding a New Job](../../adding_jobs.md).
+Follow the guide: [Adding a New Job](../../modules/processing/adding-jobs.md).
 - Implement a `BaseJob` subclass in `src/jobs/`.
 - Register sink schemas and connectors.
 - Register the job in `src/main.py` via `JobCoordinator().register_job(...)`.

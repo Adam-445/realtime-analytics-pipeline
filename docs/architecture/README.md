@@ -2,7 +2,7 @@
 
 This document provides a high-level overview of the real-time analytics pipeline, its core components, data flow, and key topics. It is the entry point for understanding how data moves through the system and which services are responsible for each stage.
 
-- See also: [Setup](../setup/README.md), [Modules](../modules/README.md), [API](../api/README.md), [Adding Jobs](../adding_jobs.md)
+- See also: [Setup](../setup/README.md), [Modules](../modules/README.md), [API](../api/README.md), [Adding Jobs](../modules/processing/adding-jobs.md)
 
 ## System Overview
 
@@ -19,13 +19,50 @@ Components deployed via `infrastructure/compose/docker-compose.yml`:
 
 ## Data Flow
 
-```
-Client → [Ingestion API]
-  → Kafka topic: analytics_events (raw events)
-    → [Processing (Flink)]
-      → Kafka topics: event_metrics, session_metrics, performance_metrics
-        → [Storage] → ClickHouse tables (event_metrics, session_metrics, performance_metrics)
-        → [Cache] → Redis time-windowed state
+```mermaid
+flowchart LR
+  subgraph Client Side
+    U[Client]
+  end
+
+  subgraph Ingestion
+    I[FastAPI /v1/analytics/track]
+  end
+
+  subgraph Kafka
+    K1[(analytics_events)]
+    K2[(event_metrics)]
+    K3[(session_metrics)]
+    K4[(performance_metrics)]
+  end
+
+  subgraph Processing
+    P[Flink jobs\nEventAggregator | SessionTracker | PerformanceTracker]
+  end
+
+  subgraph Storage
+    S[Consumer → ClickHouse\nTables: event_metrics, session_metrics, performance_metrics]
+    CH[(ClickHouse)]
+  end
+
+  subgraph Cache
+    C[Consumer → Redis\nWindows & overview]
+    R[(Redis)]
+  end
+
+  U --> I
+  I -->|publish| K1
+  K1 --> P
+  P -->|produce| K2
+  P -->|produce| K3
+  P -->|produce| K4
+  K2 --> S
+  K3 --> S
+  K4 --> S
+  S --> CH
+  K2 --> C
+  K4 --> C
+  C --> R
 ```
 
 Kafka topic names are centralized in `shared/constants/topics.py`:
@@ -40,7 +77,7 @@ Kafka topic names are centralized in `shared/constants/topics.py`:
 - Event time vs processing time: Jobs can switch between event time and processing time based on environment (see `services/processing/src/jobs/*` and `services/processing/src/core/config.py`).
 - Windowing: Tumble windows are used for aggregations (e.g., metrics and performance windows). Window sizes are configured via environment variables and surfaced in service configuration.
 - Extensibility: New jobs follow a consistent pattern using a `BaseJob` and are registered in `services/processing/src/main.py` via the `JobCoordinator`.
-  - Refer to [Adding Jobs](../adding_jobs.md) for a step-by-step guide.
+  - Refer to [Adding Jobs](../modules/processing/adding-jobs.md) for a step-by-step guide.
 
 ## Observability and Health
 
