@@ -37,11 +37,11 @@ flowchart LR
   end
 
   subgraph Processing
-    P[Flink jobs\nEventAggregator | SessionTracker | PerformanceTracker]
+    P[Flink jobs:<br>EventAggregator,<br>SessionTracker,<br>PerformanceTracker]
   end
 
   subgraph Storage
-    S[Consumer → ClickHouse\nTables: event_metrics, session_metrics, performance_metrics]
+    S[Consumer → ClickHouse<br>Tables: event_metrics, session_metrics, performance_metrics]
     CH[(ClickHouse)]
   end
 
@@ -63,6 +63,7 @@ flowchart LR
   K2 --> C
   K4 --> C
   C --> R
+
 ```
 
 Kafka topic names are centralized in `shared/constants/topics.py`:
