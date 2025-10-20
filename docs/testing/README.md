@@ -35,4 +35,4 @@ The e2e tests in `tests/e2e/test_full_pipeline.py` validate:
 
 ## Performance Tests
 
-The suite under `tests/performance` drives load against ingestion and verifies metrics and error rates. See `tests/performance/README.md` for scenario details.
+The suite under `tests/performance` drives load against ingestion and verifies metrics and error rates. See [Performance Testing Guide](./performance/README.md) for scenario details.
