@@ -1,51 +1,81 @@
-# Real-Time Analytics Pipeline [![Project Status: Active](https://img.shields.io/badge/status-active-success.svg)]()
+## Real-Time Analytics Pipeline
 
-A scalable, real-time analytics pipeline for processing and visualizing event streams. Built with an event-driven architecture using modern tools like Kafka, Flink, Clickhouse, and FastAPI, this system demonstrates low-latency stream processing and end-to-end data flow suitable for high-throughput environments.
+A compact, production-grade pipeline for ingesting, processing, and serving analytics in real time. The stack uses FastAPI (ingestion, cache), Kafka, Flink, ClickHouse, Redis, and Prometheus/Grafana for observability.
 
-> **Note**: This project builds upon the foundational work done in the [lab repository](https://github.com/Adam-445/analytics-pipeline-lab) and extends it into a production-grade system.
+Note: This project builds upon the foundational work in the [analytics-pipeline-lab](https://github.com/Adam-445/analytics-pipeline-lab) and evolves it into a more production-ready system.
 
-## Adding New Jobs to the Pipeline
-To add a new processing job to the pipeline:
+## Quick start
 
-1. Create a new job class in `src/jobs/`
-2. Define output schema in `src/core/schemas/`
-3. Register Kafka sink in `src/connectors/kafka_sink.py`
-4. Update configuration in `src/core/config.py`
-5. Register job in `src/main.py`
-6. Create Kafka topic in ingestion service
+Prerequisites:
+- Docker and Docker Compose
 
-See [Job Implementation Guide](docs/adding_jobs.md) for details
+Bring the full stack up:
 
-## Cache Service (Speed Layer)
+```bash
+docker compose -f infrastructure/compose/docker-compose.yml up -d --build
+```
 
-The `cache` service provides sub-second access to the most recent aggregated metrics emitted by Flink.
+Verify core services are responding:
 
-Flow: Kafka (event_metrics/session_metrics/performance_metrics) -> Cache Service (Redis) -> REST (and future WebSocket) APIs.
+- Ingestion API health: `curl -s http://localhost:8000/v1/healthz`
+- Cache service health: `curl -s http://localhost:8080/healthz`
+- Flink UI: http://localhost:8081
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000
+- ClickHouse HTTP ping: `curl -s http://localhost:8123/ping`
 
-Current endpoints:
+Send a sample analytics event to ingestion:
 
-- `GET /healthz` – liveness
-- `GET /readyz` – readiness (after first Kafka record processed)
-- `GET /metrics/event/latest` – latest event metrics window (flattened per event type)
-- `GET /metrics/event/windows?limit=N` – last N event windows
-- `GET /metrics/performance/windows?limit=N` – last N performance windows
-- `GET /metrics/overview` – combined latest event + performance snapshots
-- `GET /metrics` – Prometheus metrics
+```bash
+curl -sS -X POST http://localhost:8000/v1/analytics/track \
+	-H 'Content-Type: application/json' \
+	-d '{
+		"event": {"type": "page_view"},
+		"user": {"id": "user-1"},
+		"device": {"user_agent": "Mozilla/5.0", "screen_width": 1920, "screen_height": 1080},
+		"context": {"url": "https://example.com", "session_id": "sess-1"},
+		"metrics": {"load_time": 120, "interaction_time": 400},
+		"properties": {}
+	}'
+```
 
-Redis key patterns (abbreviated):
+Once events flow, the Cache readiness endpoint will flip to ready:
 
-- `metrics:event:{window_start_ms}` (Hash) – flattened counts & user counts
-- `metrics:event:windows` (ZSET) – index of window_start values
-- `metrics:perf:{window_start_ms}` / `metrics:perf:windows`
+```bash
+curl -s http://localhost:8080/readyz
+```
 
-Planned (future PRs): WebSocket streaming (`/ws/stream`), active session state, completed session lists, client subscription fanout, raw event tail for mid-window freshness.
+## Components & ports (local)
 
-Prometheus metrics (selected):
+- Ingestion API: 8000
+- Cache API: 8080
+- Flink UI (JobManager): 8081
+- ClickHouse HTTP: 8123 (native: 9000)
+- Prometheus: 9090, Grafana: 3000
+- Kafka: 9092 (external), 29092 (docker-internal), JMX/metrics: 7071/9999
+- Storage metrics: 8001 (health served internally at 8081)
 
-- `cache_records_total` – total Kafka records processed
-- `cache_kafka_commits_total` – Kafka offset batch commits
-- `cache_queue_size` – current in-memory processing queue length
-- `cache_pending_commit_messages` – messages consumed but not yet committed (gauge)
-- `cache_redis_batch_seconds` – histogram of Redis pipeline batch execution time
+## Documentation
 
-Run (in Docker Compose): the cache service listens on `:8080` and depends on `redis` + `kafka1`.
+Start here: [docs/README.md](./docs/README.md)
+
+Quick links:
+- Architecture: [docs/architecture/README.md](./docs/architecture/README.md)
+- Setup: [docs/setup/README.md](./docs/setup/README.md)
+- API: [docs/api/README.md](./docs/api/README.md)
+- Modules: [docs/modules/README.md](./docs/modules/README.md) (incl. Processing, Storage, Cache)
+- Testing: [docs/testing/README.md](./docs/testing/README.md)
+- Troubleshooting: [docs/troubleshooting/README.md](./docs/troubleshooting/README.md)
+
+Adding new processing jobs: see [docs/modules/processing/adding-jobs.md](./docs/modules/processing/adding-jobs.md).
+
+## Development
+
+Run the test suites:
+
+```bash
+./run-tests.sh
+```
+
+Code for each service lives under `services/{ingestion,processing,storage,cache}` with shared utilities in `shared/`.
+

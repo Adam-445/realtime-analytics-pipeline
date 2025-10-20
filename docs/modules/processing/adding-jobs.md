@@ -1,7 +1,13 @@
-## Adding a New Job to the Real-time Analytics Pipeline
+# Adding a New Processing Job
 
-### Step 1: Create the Job Class
-Create a new Python file in `src/jobs/` (e.g., `processing_metrics.py`):
+This guide explains how to add a new Flink job to the processing service and wire it end-to-end.
+
+- Related: [Processing Service Setup](../../setup/services/processing.md)
+- See also: [Modules Overview](../README.md)
+
+## Steps
+
+1. Create the Job Class under `services/processing/src/jobs/`:
 
 ```python
 from src.jobs.base_job import BaseJob
@@ -31,8 +37,7 @@ class ProcessingMetricsJob(BaseJob):
         )
 ```
 
-### Step 2: Create Sink Schema
-Add a schema definition in `src/core/schemas/processing_metrics_sink.py`:
+2. Create Sink Schema in `services/processing/src/core/schemas/processing_metrics_sink.py`:
 
 ```python
 from pyflink.table import DataTypes, Schema
@@ -47,11 +52,11 @@ def get_processing_metrics_sink_schema():
     )
 ```
 
-### Step 3: Register the Sink
-Update `src/connectors/kafka_sink.py`:
+3. Register the Sink in `services/processing/src/connectors/kafka_sink.py`:
 
 ```python
 from core.schemas.processing_metrics_sink import get_processing_metrics_sink_schema
+
 
 def register_processing_metrics_sink(t_env: StreamTableEnvironment):
     t_env.create_temporary_table(
@@ -63,27 +68,23 @@ def register_processing_metrics_sink(t_env: StreamTableEnvironment):
     )
 ```
 
-Then in `src/core/job_coordinator.py` update _register_connectors in JobCoordinator:
+Then in `services/processing/src/core/job_coordinator.py`:
+
 ```python
 def _register_connectors(self):
     ...
     kafka_sink.register_processing_metrics_sink(self.t_env)
 ```
 
-### Step 4: Update Configuration
-Add to `src/core/config.py`:
+4. Update Configuration in `services/processing/src/core/config.py`:
 
 ```python
 class Settings(BaseSettings):
-    # Add new topic
     topic_processing_metrics: str = "processing_metrics"
-    
-    # Add new config parameters if needed
     metrics_window_minutes: int = 5
 ```
 
-### Step 5: Register the Job
-Update `src/main.py`:
+5. Register the Job in `services/processing/src/main.py`:
 
 ```python
 from src.jobs.processing_metrics import ProcessingMetricsJob
@@ -93,22 +94,18 @@ def main():
     coordinator.register_job(ProcessingMetricsJob())
 ```
 
-### Step 6: Create Kafka Topic
-Update topic creation in ingestion service (`src/infrastructure/kafka/admin.py`):
+6. Create Kafka Topic (if auto-creation is not used): update ingestion admin (or dedicated topic admin):
 
 ```python
 def create_topics():
     ...
-    topics.append(
-        NewTopic(settings.topic_processing_metrics, num_partitions=3, replication_factor=1)
-    )
+    topics.append(NewTopic(settings.topic_processing_metrics, num_partitions=3, replication_factor=1))
 ```
 
----
+## Design Principles
 
-### Key Design Principles for New Jobs:
-1. **Single Responsibility**: Each job should focus on one specific metric or analysis
-2. **Reuse Transformations**: Share common transformations like `device_categorizer`
-3. **Watermark Awareness**: Always consider event time and watermarks
-4. **Config-Driven**: Make window sizes, thresholds, etc. configurable
-5. **Error Handling**: Add robust error handling in complex jobs
+- Single responsibility per job
+- Reuse common transformations (e.g., `device_categorizer`)
+- Watermark-aware and event-time first
+- Config-driven windows and thresholds
+- Robust error handling for complex pipelines
