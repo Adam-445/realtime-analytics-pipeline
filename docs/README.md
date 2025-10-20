@@ -1,7 +1,5 @@
 # Documentation Index
 
-A concise index for the project documentation. Keep this page minimal and focused on navigation.
-
 - Architecture: [architecture/README.md](./architecture/README.md)
 - Setup: [setup/README.md](./setup/README.md)
 - API: [api/README.md](./api/README.md)
