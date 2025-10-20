@@ -57,17 +57,17 @@ curl -s http://localhost:8080/readyz
 
 ## Documentation
 
-Start here: `docs/README.md`
+Start here: [docs/README.md](./docs/README.md)
 
 Quick links:
-- Architecture: `docs/architecture/README.md`
-- Setup: `docs/setup/README.md`
-- API: `docs/api/README.md`
-- Modules: `docs/modules/README.md` (incl. Processing, Storage, Cache)
-- Testing: `docs/testing/README.md`
-- Troubleshooting: `docs/troubleshooting/README.md`
+- Architecture: [docs/architecture/README.md](./docs/architecture/README.md)
+- Setup: [docs/setup/README.md](./docs/setup/README.md)
+- API: [docs/api/README.md](./docs/api/README.md)
+- Modules: [docs/modules/README.md](./docs/modules/README.md) (incl. Processing, Storage, Cache)
+- Testing: [docs/testing/README.md](./docs/testing/README.md)
+- Troubleshooting: [docs/troubleshooting/README.md](./docs/troubleshooting/README.md)
 
-Adding new processing jobs: see `docs/modules/processing/adding-jobs.md`.
+Adding new processing jobs: see [docs/modules/processing/adding-jobs.md](./docs/modules/processing/adding-jobs.md).
 
 ## Development
 
