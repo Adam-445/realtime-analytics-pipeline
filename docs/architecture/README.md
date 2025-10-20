@@ -85,7 +85,7 @@ Kafka topic names are centralized in `shared/constants/topics.py`:
   - Ingestion: `/metrics`
   - Cache: `/metrics`
   - Processing: Prometheus Reporter (Flink) on 9249 (scraped by Prometheus)
-  - Storage: Prometheus client started on port 8001 by default
+  - Storage: Prometheus client on port 8001 (metrics), lightweight health server on `health_port` (default 8081)
 - Health endpoints
   - Ingestion: `/v1/healthz`
   - Cache: `/healthz` and `/readyz`

@@ -6,7 +6,7 @@ Public HTTP APIs exposed by services. This section summarizes endpoints, request
   - Base path: `/v1`
   - Endpoints: `/v1/analytics/track`, `/v1/healthz`, `/metrics`
 - Cache API (FastAPI): exposes health/readiness and metrics views from Redis
-  - Endpoints: `/healthz`, `/readyz`, `/metrics/*`
+  - Endpoints: `/healthz`, `/readyz`, `/metrics/*`, Prometheus metrics at `/metrics`
 
 See also: [Setup → Ingestion](../setup/services/ingestion.md), [Setup → Cache](../setup/services/cache.md), [Testing Endpoints](../testing/endpoints.md)
 
@@ -65,6 +65,10 @@ Returns the latest event metrics snapshot.
 Returns a list of recent event metric windows (default `limit=20`).
 
 ### GET /metrics/performance/windows?limit=20
+
+### GET /metrics
+
+Prometheus metrics endpoint for the cache service.
 
 Returns a list of recent performance windows (default `limit=20`).
 
