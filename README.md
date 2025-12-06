@@ -1,6 +1,6 @@
 ## Real-Time Analytics Pipeline
 
-A compact, production-grade pipeline for ingesting, processing, and serving analytics in real time. The stack uses FastAPI (ingestion, cache), Kafka, Flink, ClickHouse, Redis, and Prometheus/Grafana for observability.
+A pipeline for ingesting, processing, and serving analytics in real time. The stack uses FastAPI (ingestion, cache), Kafka, Flink, ClickHouse, Redis, and Prometheus/Grafana for observability.
 
 Note: This project builds upon the foundational work in the [analytics-pipeline-lab](https://github.com/Adam-445/analytics-pipeline-lab) and evolves it into a more production-ready system.
 
